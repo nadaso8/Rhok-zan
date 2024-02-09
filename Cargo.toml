@@ -1,0 +1,12 @@
+[package]
+name = "Rhok-zan"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+eframe = "0.26.0"
+egui = "0.26.0"
+pest = "2.7.7"
+rayon = "1.8.1"

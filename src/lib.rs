@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr, BitXor, Not};
+use std::{ops::{BitAnd, BitOr, BitXor, Not}, sync::Arc, collections::HashMap};
 
 /// different signal states produced by a gate or input and the time delay for their arrival in gate transitions
 #[derive(Debug, Clone, Copy)]
@@ -47,42 +47,29 @@ impl BitXor for Signal {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct GateID(usize);
-
+enum NodeID{
+    Gate(usize),
+    Port(usize),
+}
 
 #[derive(Debug, Clone, Copy)]
 enum Gate {
-    Not{state: Signal, inputs: GateID},
-    Nand{state: Signal, inputs: [GateID; 2]},
-    Nor{state: Signal, inputs: [GateID; 2]},
-    And{state: Signal, inputs: [GateID; 2]},
-    Or{state: Signal, inputs: [GateID; 2]},
-    Xor{state: Signal, inputs: [GateID; 2]},
+    Not{state: Signal, inputs: NodeID},
+    Nand{state: Signal, inputs: [NodeID; 2]},
+    Nor{state: Signal, inputs: [NodeID; 2]},
+    And{state: Signal, inputs: [NodeID; 2]},
+    Or{state: Signal, inputs: [NodeID; 2]},
+    Xor{state: Signal, inputs: [NodeID; 2]},
 }
 
-impl Gate {
-    /// mutates state based on the downstream states of the gate's inputs
-    fn eval(&self,  ) -> Self {
-        match self {
-            Self::Not{state, inputs} => {
+/// A collection of gates which may be inspected or consumed in order to step it forward  
+#[derive(Debug, Clone)]
+struct Circuit(Vec<Gate>);
 
-            },
-            Self::Nand{state, inputs} => {
-
-            },
-            Self::Nor{state, inputs} => {
-
-            },
-            Self::And{state, inputs} => {
-
-            },
-            Self::Or{state, inputs} => {
-
-            },
-            Self::Xor{state, inputs} => {
-
-            },
-        }
+impl Circuit {
+    /// move state of gates forward one gate transition
+    fn eval(&self) -> Self{
+        todo!()
     }
 }
 

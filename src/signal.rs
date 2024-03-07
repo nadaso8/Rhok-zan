@@ -1,7 +1,3 @@
-/// a collection of signals packaged together for easy group routing
-#[derive(Debug, Clone, Copy)]
-pub struct SignalWidth(Vec<Signal>);
-
 /// different signal states produced by a gate or circuit
 #[derive(Debug, Clone, Copy)]
 pub enum Signal {
@@ -17,10 +13,10 @@ impl Not for  Signal {
     type Output = Self;
     fn not(self) -> Signal {
         match self  {
-            Signal::True => Signal::False,
             Signal::False => Signal::True,
-            Signal::UncontrolledTrue => Signal::UncontrolledFalse,
+            Signal::True => Signal::False,
             Signal::UncontrolledFalse => Signal::UncontrolledTrue,
+            Signal::UncontrolledTrue => Signal::UncontrolledFalse,
             Signal::Undefined => Signal::Undefined,
             Signal::HighImpedance => Signal::HighImpedance,
         }
@@ -30,7 +26,14 @@ impl Not for  Signal {
 impl BitAnd for Signal {
     type Output = Self;
     fn bitand(self, rhs: Self) -> Self::Output {
-        todo!();
+        match (self, rhs) {
+            (Signal::True, Signal::True) => Signal::True,
+            (Signal::False, _) |
+            (_, Signal::False) => Signal::False,
+            (Signal::UncontrolledTrue, Signal::UncontrolledTrue) => Signal::UncontrolledTrue,
+            (Signal)
+    
+        }
     }
 }
 

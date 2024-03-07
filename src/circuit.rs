@@ -1,5 +1,4 @@
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-
 use crate::signal::{Signal, SignalWidth};
 
 #[derive(Debug, Clone, Copy)]
@@ -33,25 +32,8 @@ enum Node {
 #[derive(Debug, Clone)]
 enum Circuit {
 
-    Loop{
-        state_graph: Vec<Node>,
-    },
-
-    Branch{
-        state_graph: Vec<Node>,
-    },
 }
 
 impl Circuit {
-    /// Advance state one gate transition and return a Result with the produced SignalWidth
-    /// 
-    /// will error if the Input SignalWidth Is the wrong size. 
-    fn eval(&mut self, inputs: SignalWidth) -> Result<SignalWidth, &'static str>{
-        *self.last_state = self.current_state.clone();
 
-        self.current_state.into_par_iter().map(
-            |node|
-
-        ).collect();
-    }
 }

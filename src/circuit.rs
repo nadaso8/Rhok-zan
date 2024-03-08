@@ -1,5 +1,5 @@
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use crate::signal::{Signal, SignalWidth};
+use crate::signal::Signal;
 
 #[derive(Debug, Clone, Copy)]
 enum Gate {
@@ -11,7 +11,6 @@ enum Gate {
     Xor{state: Signal, inputs: [NodeID; 2]},
 }
 
-/// adress formatting for nodes in a circuit graph structure
 #[derive(Debug, Clone, Copy)]
 struct NodeID(usize);
 
@@ -22,7 +21,7 @@ struct InputID(usize);
 struct OutputID(usize);
 
 
-// data elements of nodes in a circuit graph structure
+#[derive(Debug, Clone, Copy)]
 enum Node {
     Gate(Gate), // gate to retrieve signal from 
     Input(InputID), // input addr to retrieve signal from
@@ -30,7 +29,7 @@ enum Node {
 }
 
 #[derive(Debug, Clone)]
-enum Circuit {
+struct Circuit {
 
 }
 

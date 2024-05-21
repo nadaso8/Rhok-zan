@@ -27,38 +27,47 @@ impl std::ops::BitAnd for Signal {
     type Output = Self;
     fn bitand(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Signal::False, _)                                      |
-            (_, Signal::False)                                      => Signal::False,
+            (Signal::False, Signal::False) => Signal::False, 
+            (Signal::False, Signal::True) => Signal::False, 
+            (Signal::False, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::False, Signal::UncontrolledTrue) => Signal::False, 
+            (Signal::False, Signal::HighImpedance) => Signal::False, 
+            (Signal::False, Signal::Undefined) => Signal::False, 
 
-            (Signal::True, Signal::True)                            => Signal::True,
-            
-            (Signal::True, Signal::UncontrolledFalse)               |
-            (Signal::UncontrolledTrue, Signal::UncontrolledFalse)   |
-            (Signal::HighImpedance, Signal::UncontrolledFalse)      |
-            (Signal::Undefined, Signal::UncontrolledFalse)          |
-            (Signal::UncontrolledFalse, Signal::True)               |
-            (Signal::UncontrolledFalse, Signal::UncontrolledTrue)   |
-            (Signal::UncontrolledFalse, Signal::HighImpedance)      |
-            (Signal::UncontrolledFalse, Signal::Undefined)          |
-            (Signal::UncontrolledFalse, Signal::UncontrolledFalse)  => Signal::UncontrolledFalse,
+            (Signal::True, Signal::False) => Signal::False, 
+            (Signal::True, Signal::True) => Signal::True, 
+            (Signal::True, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::True, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::True, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::True, Signal::Undefined) => Signal::Undefined, 
 
-            (Signal::UncontrolledTrue, Signal::True)                |
-            (Signal::True, Signal::UncontrolledTrue)                |
-            (Signal::UncontrolledTrue, Signal::UncontrolledTrue )   => Signal::UncontrolledTrue,
+            (Signal::UncontrolledFalse, Signal::False) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::True) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::UncontrolledTrue) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::HighImpedance) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::Undefined) => Signal::UncontrolledFalse, 
 
-            (Signal::HighImpedance, Signal::True)                   |
-            (Signal::HighImpedance, Signal::UncontrolledTrue)       |
-            (Signal::HighImpedance, Signal::Undefined)              |
-            (Signal::True, Signal::HighImpedance)                   |
-            (Signal::UncontrolledTrue, Signal::HighImpedance)       |
-            (Signal::Undefined, Signal::HighImpedance)              |
-            (Signal::HighImpedance, Signal::HighImpedance)          => Signal::HighImpedance,
+            (Signal::UncontrolledTrue, Signal::False) => Signal::False, 
+            (Signal::UncontrolledTrue, Signal::True) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledTrue, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::UncontrolledTrue, Signal::Undefined) => Signal::Undefined, 
 
-            (Signal::Undefined, Signal::True)                       |
-            (Signal::Undefined, Signal::UncontrolledTrue)           |
-            (Signal::True, Signal::Undefined)                       |
-            (Signal::UncontrolledTrue, Signal::Undefined)           |            
-            (Signal::Undefined, Signal::Undefined)                  => Signal::Undefined
+            (Signal::HighImpedance, Signal::False) => Signal::False, 
+            (Signal::HighImpedance, Signal::True) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::HighImpedance, Signal::UncontrolledTrue) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::Undefined) => Signal::HighImpedance, 
+
+            (Signal::Undefined, Signal::False) => Signal::False, 
+            (Signal::Undefined, Signal::True) => Signal::Undefined, 
+            (Signal::Undefined, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::Undefined, Signal::UncontrolledTrue) => Signal::Undefined, 
+            (Signal::Undefined, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::Undefined, Signal::Undefined) => Signal::Undefined 
         }
     }
 }
@@ -66,48 +75,97 @@ impl std::ops::BitAnd for Signal {
 impl std::ops::BitOr for Signal {
     type Output = Self;
     fn bitor(self, rhs: Self) -> Self::Output {
-        todo!()
+        match(self, rhs) {
+            (Signal::False, Signal::False) => Signal::False, 
+            (Signal::False, Signal::True) => Signal::True, 
+            (Signal::False, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::False, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::False, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::False, Signal::Undefined) => Signal::Undefined, 
+
+            (Signal::True, Signal::False) => Signal::True, 
+            (Signal::True, Signal::True) => Signal::True, 
+            (Signal::True, Signal::UncontrolledFalse) => Signal::True, 
+            (Signal::True, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::True, Signal::HighImpedance) => Signal::True, 
+            (Signal::True, Signal::Undefined) => Signal::True, 
+
+            (Signal::UncontrolledFalse, Signal::False) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::True) => Signal::True, 
+            (Signal::UncontrolledFalse, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledFalse, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::UncontrolledFalse, Signal::Undefined) => Signal::Undefined, 
+
+            (Signal::UncontrolledTrue, Signal::False) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::True) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::UncontrolledFalse) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::HighImpedance) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::Undefined) => Signal::UncontrolledTrue, 
+
+            (Signal::HighImpedance, Signal::False) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::True) => Signal::True, 
+            (Signal::HighImpedance, Signal::UncontrolledFalse) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::HighImpedance, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::Undefined) => Signal::HighImpedance, 
+
+            (Signal::Undefined, Signal::False) => Signal::Undefined, 
+            (Signal::Undefined, Signal::True) => Signal::True, 
+            (Signal::Undefined, Signal::UncontrolledFalse) => Signal::Undefined, 
+            (Signal::Undefined, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::Undefined, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::Undefined, Signal::Undefined) => Signal::Undefined 
+        }
     }
 }
 
 impl std::ops::BitXor for Signal {
     type Output = Self;
     fn bitxor(self, rhs: Self) -> Self::Output {
-        todo!()
-    }
-}
+        match(self, rhs) {
+            (Signal::False, Signal::False) => Signal::False, 
+            (Signal::False, Signal::True) => Signal::True, 
+            (Signal::False, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::False, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::False, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::False, Signal::Undefined) => Signal::Undefined, 
 
+            (Signal::True, Signal::False) => Signal::True, 
+            (Signal::True, Signal::True) => Signal::False, 
+            (Signal::True, Signal::UncontrolledFalse) => Signal::UncontrolledTrue, 
+            (Signal::True, Signal::UncontrolledTrue) => Signal::UncontrolledFalse, 
+            (Signal::True, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::True, Signal::Undefined) => Signal::Undefined, 
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+            (Signal::UncontrolledFalse, Signal::False) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::True) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledFalse, Signal::UncontrolledFalse) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledFalse, Signal::UncontrolledTrue) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledFalse, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::UncontrolledFalse, Signal::Undefined) => Signal::Undefined, 
 
-    #[test]
-    fn test_bitand_operation() {
-        // Iterate over all variants for the left operand
-        for &left_operand in &[
-            Signal::False,
-            Signal::True,
-            Signal::UncontrolledFalse,
-            Signal::UncontrolledTrue,
-            Signal::HighImpedance,
-            Signal::Undefined,
-        ] {
-            // Iterate over all variants for the right operand
-            for &right_operand in &[
-                Signal::False,
-                Signal::True,
-                Signal::UncontrolledFalse,
-                Signal::UncontrolledTrue,
-                Signal::HighImpedance,
-                Signal::Undefined,
-            ] {
-                // Perform the bitwise AND operation
-                let result = left_operand & right_operand;
+            (Signal::UncontrolledTrue, Signal::False) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::True) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledTrue, Signal::UncontrolledFalse) => Signal::UncontrolledTrue, 
+            (Signal::UncontrolledTrue, Signal::UncontrolledTrue) => Signal::UncontrolledFalse, 
+            (Signal::UncontrolledTrue, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::UncontrolledTrue, Signal::Undefined) => Signal::Undefined, 
 
-                // Print the output for each combination
-                println!("{:?} & {:?} = {:?}", left_operand, right_operand, result);
-            }
+            (Signal::HighImpedance, Signal::False) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::True) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::UncontrolledFalse) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::UncontrolledTrue) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::HighImpedance, Signal::Undefined) => Signal::HighImpedance, 
+
+            (Signal::Undefined, Signal::False) => Signal::Undefined, 
+            (Signal::Undefined, Signal::True) => Signal::Undefined, 
+            (Signal::Undefined, Signal::UncontrolledFalse) => Signal::Undefined, 
+            (Signal::Undefined, Signal::UncontrolledTrue) => Signal::Undefined, 
+            (Signal::Undefined, Signal::HighImpedance) => Signal::HighImpedance, 
+            (Signal::Undefined, Signal::Undefined) => Signal::Undefined
         }
     }
 }

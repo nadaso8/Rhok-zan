@@ -19,6 +19,8 @@ fn step(&mut self) {
         self.signals_swap.par_iter_mut().enumerate().for_each(
             |(index, swap)|
             match self.description[index] {
+                Operation::Input(get_input) => swap = get_input(index),
+                Operation::Output(a, handle_output) => handle_output(index, self.signals[a.0]),
                 Operation::Not(a) => *swap = !self.signals[a.0],
                 Operation::And(a, b) => *swap = self.signals[a.0] & self.signals[b.0],
                 Operation::Nand(a, b) => *swap = !(self.signals[a.0] & self.signals[b.0]),
@@ -47,5 +49,19 @@ fn step(&mut self) {
             signals: initial_state.into_boxed_slice(),
             signals_swap:initial_swap.into_boxed_slice(),
         };
+    }
+}
+
+
+#[cfg(test)]
+mod tests { 
+    use super::*;
+
+    fn test_case_latch() {
+        Circuit::new(
+            Box::new([
+
+            ])
+        )
     }
 }

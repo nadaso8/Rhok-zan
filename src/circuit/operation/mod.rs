@@ -3,8 +3,8 @@ pub struct SignalID (pub usize);
 
 #[derive(Clone, Copy, Debug)]
 pub enum Operation {
-    Input(FnMut),
-    Output(SignalID, FnMut),
+    Input(fn(usize) -> Result<super::signal::Signal, &'static str>),
+    Output(SignalID, fn(usize, super::signal::Signal) -> Result<(), &'static str>),
     Not(SignalID),
     And(SignalID, SignalID),
     Nand(SignalID, SignalID),

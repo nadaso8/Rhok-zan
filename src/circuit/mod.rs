@@ -1,6 +1,8 @@
 mod operation;
 mod signal;
 
+use std::thread::Result;
+
 use rayon::prelude::*;
 
 use self::operation::*;
@@ -19,8 +21,20 @@ fn step(&mut self) {
         self.signals_swap.par_iter_mut().enumerate().for_each(
             |(index, swap)|
             match self.description[index] {
-                Operation::Input(get_input) => swap = get_input(index),
-                Operation::Output(a, handle_output) => handle_output(index, self.signals[a.0]),
+                // I/O port handling 
+                Operation::Input(get) => {
+                    *swap = get(index)
+                },
+                Operation::Output(a, handle) => {
+
+                    match handle(index, self.signals[a.0]) {
+                        Ok => ,
+                        Err(msg) => 
+                    }
+
+                },
+
+                // standard boolean logic handling
                 Operation::Not(a) => *swap = !self.signals[a.0],
                 Operation::And(a, b) => *swap = self.signals[a.0] & self.signals[b.0],
                 Operation::Nand(a, b) => *swap = !(self.signals[a.0] & self.signals[b.0]),
@@ -49,6 +63,10 @@ fn step(&mut self) {
             signals: initial_state.into_boxed_slice(),
             signals_swap:initial_swap.into_boxed_slice(),
         };
+    }
+
+    fn log_output_err(&self, op_id: usize, user_handler_err: &str) {
+        todo!("implement logging and graceful shutdown")
     }
 }
 

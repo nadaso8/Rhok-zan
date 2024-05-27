@@ -1,10 +1,11 @@
+use std::fmt::Debug;
+
 #[derive(Clone, Copy, Debug)]
 pub struct SignalID (pub usize);
 
-#[derive(Clone, Copy, Debug)]
 pub enum Operation {
-    Input(fn(usize) -> Result<super::signal::Signal, &'static str>),
-    Output(SignalID, fn(usize, super::signal::Signal) -> Result<(), &'static str>),
+    Input(InputHandler<dyn FnMut(usize) -> super::Signal + Sync + Send>),
+    Output(SignalID, OutputHandler<dyn FnMut(usize, super::Signal) + Sync + Send>),
     Not(SignalID),
     And(SignalID, SignalID),
     Nand(SignalID, SignalID),
@@ -14,3 +15,58 @@ pub enum Operation {
     Xnor(SignalID, SignalID)
 }
 
+impl Debug for Operation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Type: {}", match self {
+            Self::Input(_) => "input",
+            Self::Output(I,_) => format!("output Of: {}", I.0).as_str(),
+            Self::Not(I) => format!("not Of: {}", I.0).as_str(),
+            Self::And(I, J) => format!("and Of: {}, {}", I.0, J.0).as_str(),
+            Self::Nand(I, J) => format!("nand Of: {}, {}", I.0, J.0).as_str(),
+            Self::Or(I, J) => format!("or Of: {}, {}", I.0, J.0).as_str(),
+            Self::Nor(I, J) => format!("nor Of: {}, {}", I.0, J.0).as_str(),
+            Self::Xor(I, J) => format!("xor Of: {}, {}", I.0, J.0).as_str(),
+            Self::Xnor(I, J) => format!("xnor Of: {}, {}", I.0, J.0).as_str(),
+        })
+    }
+}
+
+
+#[derive(Debug)]
+struct InputHandler<F>
+where
+    F: FnMut(usize) -> super::Signal + Sync + Send + ?Sized
+{
+    pub handler: Box<F>
+}
+
+impl <F> InputHandler<F> 
+where
+    F: FnMut(usize) -> super::Signal + Sync + Send + ?Sized
+{
+    fn new(handler: Box<F>) -> Self{
+        Self {
+            handler
+        }
+    }
+}
+
+
+#[derive(Debug)]
+struct OutputHandler <F>
+where
+    F: FnMut(usize, super::Signal) + Sync + Send + ?Sized
+{
+    pub handler: Box<F>
+}
+
+impl <F> OutputHandler<F> 
+where
+    F: FnMut(usize, super::Signal) + Sync + Send + ?Sized
+{
+    fn new(handler: Box<F>) -> Self{
+        Self {
+            handler
+        }
+    }
+}

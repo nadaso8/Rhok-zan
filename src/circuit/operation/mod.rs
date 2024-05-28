@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{format, Debug};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SignalID (pub usize);
@@ -18,15 +18,15 @@ pub enum Operation {
 impl Debug for Operation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Type: {}", match self {
-            Self::Input(_) => "input",
-            Self::Output(I,_) => format!("output Of: {}", I.0).as_str(),
-            Self::Not(I) => format!("not Of: {}", I.0).as_str(),
-            Self::And(I, J) => format!("and Of: {}, {}", I.0, J.0).as_str(),
-            Self::Nand(I, J) => format!("nand Of: {}, {}", I.0, J.0).as_str(),
-            Self::Or(I, J) => format!("or Of: {}, {}", I.0, J.0).as_str(),
-            Self::Nor(I, J) => format!("nor Of: {}, {}", I.0, J.0).as_str(),
-            Self::Xor(I, J) => format!("xor Of: {}, {}", I.0, J.0).as_str(),
-            Self::Xnor(I, J) => format!("xnor Of: {}, {}", I.0, J.0).as_str(),
+            Self::Input(_) => format!("input",),
+            Self::Output(I,_) => format!("output Of: {}", I.0),
+            Self::Not(I) => format!("not Of: {}", I.0),
+            Self::And(I, J) => format!("and Of: {}, {}", I.0, J.0),
+            Self::Nand(I, J) => format!("nand Of: {}, {}", I.0, J.0),
+            Self::Or(I, J) => format!("or Of: {}, {}", I.0, J.0),
+            Self::Nor(I, J) => format!("nor Of: {}, {}", I.0, J.0),
+            Self::Xor(I, J) => format!("xor Of: {}, {}", I.0, J.0),
+            Self::Xnor(I, J) => format!("xnor Of: {}, {}", I.0, J.0),
         })
     }
 }

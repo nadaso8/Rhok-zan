@@ -1,5 +1,5 @@
-mod operation;
-mod signal;
+pub mod operation;
+pub mod signal;
 
 use rayon::prelude::*;
 
@@ -120,7 +120,7 @@ mod tests {
         use operation::*;
         use signal::*;
 
-        const TPI:usize = 16;
+        const TPI:usize = 8;
 
         // build description 
         let description = Box::new([

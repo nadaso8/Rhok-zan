@@ -1,2 +1,2 @@
-mod ast_gen;
+mod graph_gen;
 mod tokenizer;

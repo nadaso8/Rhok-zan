@@ -169,3 +169,18 @@ impl std::ops::BitXor for Signal {
         }
     }
 }
+
+use std::fmt::Display;
+
+impl Display for Signal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Self::False => "False",
+            Self::True => "True",
+            Self::UncontrolledFalse => "Uncontrolled False",
+            Self::UncontrolledTrue => "Uncontrolled True",
+            Self::Undefined => "Undefined",
+            Self::HighImpedance => "High Impedance"
+        })
+    }
+}

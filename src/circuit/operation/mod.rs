@@ -1,11 +1,11 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 #[derive(Clone, Copy, Debug)]
 pub struct SignalID (pub usize);
 
 pub enum Operation {
-    Input(InputHandler<dyn FnMut(usize) -> super::Signal + Sync + Send>),
-    Output(SignalID, OutputHandler<dyn FnMut(usize, super::Signal) + Sync + Send>),
+    Input(InputHandler<dyn Fn(usize, usize) -> super::Signal + Sync + Send>),
+    Output(SignalID, OutputHandler<dyn Fn(usize, usize, super::Signal) + Sync + Send>),
     Not(SignalID),
     And(SignalID, SignalID),
     Nand(SignalID, SignalID),
@@ -33,40 +33,40 @@ impl Debug for Operation {
 
 
 #[derive(Debug)]
-struct InputHandler<F>
+pub struct InputHandler<F>
 where
-    F: FnMut(usize) -> super::Signal + Sync + Send + ?Sized
+    F: Fn(usize, usize) -> super::Signal + Sync + Send + ?Sized
 {
     pub handler: Box<F>
 }
 
 impl <F> InputHandler<F> 
 where
-    F: FnMut(usize) -> super::Signal + Sync + Send + ?Sized
+    F: Fn(usize, usize) -> super::Signal + Sync + Send
 {
-    fn new(handler: Box<F>) -> Self{
+    pub fn new(func: F) -> Self{
         Self {
-            handler
+            handler: Box::new(func)
         }
     }
 }
 
 
 #[derive(Debug)]
-struct OutputHandler <F>
+pub struct OutputHandler <F>
 where
-    F: FnMut(usize, super::Signal) + Sync + Send + ?Sized
+    F: Fn(usize, usize, super::Signal) + Sync + Send + ?Sized  
 {
     pub handler: Box<F>
 }
 
 impl <F> OutputHandler<F> 
 where
-    F: FnMut(usize, super::Signal) + Sync + Send + ?Sized
+    F: Fn(usize, usize, super::Signal) + Sync + Send
 {
-    fn new(handler: Box<F>) -> Self{
+    pub fn new(func: F) -> Self{
         Self {
-            handler
+            handler: Box::new(func)
         }
     }
 }

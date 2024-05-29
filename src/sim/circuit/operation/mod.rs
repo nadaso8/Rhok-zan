@@ -4,8 +4,8 @@ use std::fmt::Debug;
 pub struct SignalID (pub usize);
 
 pub enum Operation {
-    Input(InputHandler<dyn Fn(usize, usize) -> super::Signal + Sync + Send>),
-    Output(SignalID, OutputHandler<dyn Fn(usize, usize, super::Signal) + Sync + Send>),
+    Input(InputHandler<dyn Fn(usize, u128) -> super::Signal + Sync + Send>),
+    Output(SignalID, OutputHandler<dyn Fn(usize, u128, super::Signal) + Sync + Send>),
     Not(SignalID),
     And(SignalID, SignalID),
     Nand(SignalID, SignalID),
@@ -35,14 +35,14 @@ impl Debug for Operation {
 #[derive(Debug)]
 pub struct InputHandler<F>
 where
-    F: Fn(usize, usize) -> super::Signal + Sync + Send + ?Sized
+    F: Fn(usize, u128) -> super::Signal + Sync + Send + ?Sized
 {
     pub handler: Box<F>
 }
 
 impl <F> InputHandler<F> 
 where
-    F: Fn(usize, usize) -> super::Signal + Sync + Send
+    F: Fn(usize, u128) -> super::Signal + Sync + Send
 {
     pub fn new(func: F) -> Self{
         Self {
@@ -55,14 +55,14 @@ where
 #[derive(Debug)]
 pub struct OutputHandler <F>
 where
-    F: Fn(usize, usize, super::Signal) + Sync + Send + ?Sized  
+    F: Fn(usize, u128, super::Signal) + Sync + Send + ?Sized  
 {
     pub handler: Box<F>
 }
 
 impl <F> OutputHandler<F> 
 where
-    F: Fn(usize, usize, super::Signal) + Sync + Send
+    F: Fn(usize, u128, super::Signal) + Sync + Send
 {
     pub fn new(func: F) -> Self{
         Self {

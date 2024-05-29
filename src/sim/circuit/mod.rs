@@ -12,18 +12,19 @@ pub struct Circuit {
     signals: Box<[Signal]>,
     signals_swap: Box<[Signal]>,
     ticks_per_input: usize,
-    tick_counter: usize
+    tick_counter: u128
 }
 
 impl Circuit {
-fn tick(&mut self) {
+    /// Steps the circuit simulation forward one tick.
+    pub fn tick(&mut self) {
         // update self.signals_swap with pending signal values 
         self.signals_swap.par_iter_mut().enumerate().for_each(
             |(index, swap)|
             match &self.description[index] {
                 // I/O port handling 
                 Operation::Input(input) => {
-                    if self.tick_counter % self.ticks_per_input == 0 {
+                    if self.tick_counter % self.ticks_per_input as u128 == 0 {
                         let pending_input = input.handler.as_ref()(index, self.tick_counter);
 
                         // This match statment exists to inject an uncontrolled vlaue on the leading edge
@@ -63,7 +64,13 @@ fn tick(&mut self) {
         self.tick_counter += 1;
     }
 
-    fn new(description: Box<[Operation]>, tpi: usize) -> Self {
+    /// Produces a new circuit sim object from an opperation graph structure.
+    /// 
+    /// TPI indicates the ticks per input. AKA, how manny simulation ticks 
+    /// will be run in between calling input node closures. It is HIGHLY
+    /// recommended that this value is longer than the propagation delay
+    /// of the circuit under testing.
+    pub fn new(description: Box<[Operation]>, tpi: usize) -> Self {
         let description_length = description.as_ref().len();
         // allocate and fill vector for initial state
         let mut initial_state = Vec::with_capacity(description_length);
@@ -87,6 +94,19 @@ fn tick(&mut self) {
             tick_counter: 0
         };
     }
+
+    /// Gets the current state of the simulation and its description
+    /// useful if you need to inspect a snapshot of the full simulation state.
+    /// For regular outputs you should prefer the usage of output Opperation closures
+    /// since they will be called in paralell during the simulation loop.
+    pub fn inspect(&self) -> (&[Operation], &[Signal]) {
+        (self.description.as_ref(), self.signals.as_ref())
+    }
+
+    /// Gets the current tick of the simulation.
+    pub fn get_tick(&self) -> u128 {
+        self.tick_counter
+    }
 }
 
 
@@ -107,7 +127,7 @@ mod tests {
             Operation::Input(
                 InputHandler { handler: Box::new(
                     |index, tick|
-                    match (tick / (TPI * 2)) % (2) {
+                    match (tick / (TPI as u128 * 2)) % (2) {
                         0 => Signal::False,
                         _ => Signal::True
                     }
@@ -116,7 +136,7 @@ mod tests {
             Operation::Input(
                 InputHandler { handler: Box::new(
                     |index, tick|
-                    match (tick / (TPI * 4)) % (2) {
+                    match (tick / (TPI as u128 * 4)) % (2) {
                         0 => Signal::False,
                         _ => Signal::True
                     })
@@ -126,13 +146,13 @@ mod tests {
             Operation::Nor(SignalID(1), SignalID(2)),
             Operation::Output(SignalID(2), OutputHandler { handler: Box::new(
                 |index, tick, signal| {
-                    if tick % TPI == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
+                    if tick % TPI as u128 == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
                     return;
                 }
             ) }),
             Operation::Output(SignalID(3), OutputHandler { handler: Box::new(
                 |index, tick, signal| {
-                    if tick % TPI == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
+                    if tick % TPI as u128 == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
                     return;
                 }
             ) })

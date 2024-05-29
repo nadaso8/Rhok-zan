@@ -87,10 +87,6 @@ fn tick(&mut self) {
             tick_counter: 0
         };
     }
-
-    fn log_output_err(&self, op_id: usize, user_handler_err: &str) {
-        todo!("implement logging and graceful shutdown")
-    }
 }
 
 
@@ -111,34 +107,39 @@ mod tests {
             Operation::Input(
                 InputHandler { handler: Box::new(
                     |index, tick|
-                    match (tick / TPI) % (1 << 1) {
-                        0 => Signal::True,
-                        _ => Signal::False
+                    match (tick / (TPI * 2)) % (2) {
+                        0 => Signal::False,
+                        _ => Signal::True
                     }
                 )}
             ),
             Operation::Input(
                 InputHandler { handler: Box::new(
                     |index, tick|
-                    match (tick / TPI) % (1 << 2) {
-                        0 => Signal::True,
-                        1 => Signal::True,
-                        _ => Signal::False
+                    match (tick / (TPI * 4)) % (2) {
+                        0 => Signal::False,
+                        _ => Signal::True
                     })
                 }
             ),
             Operation::Nor(SignalID(0), SignalID(3)),
             Operation::Nor(SignalID(1), SignalID(2)),
             Operation::Output(SignalID(2), OutputHandler { handler: Box::new(
-                |index, tick, signal| println!("Index: {} is {} on Tick: {}", index, signal, tick)
+                |index, tick, signal| {
+                    if tick % TPI == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
+                    return;
+                }
             ) }),
             Operation::Output(SignalID(3), OutputHandler { handler: Box::new(
-                |index, tick, signal| println!("Index: {} is {} on Tick: {}", index, signal, tick)
+                |index, tick, signal| {
+                    if tick % TPI == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
+                    return;
+                }
             ) })
         ]);
 
         let mut circuit = Circuit::new(description, TPI);
-        for _ in 0..128 {
+        for _ in 0..=256 {
             circuit.tick();
         }
 

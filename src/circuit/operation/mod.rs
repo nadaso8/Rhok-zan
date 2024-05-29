@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SignalID (pub usize);

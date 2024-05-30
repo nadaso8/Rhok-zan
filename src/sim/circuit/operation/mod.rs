@@ -42,11 +42,11 @@ where
 
 impl <F> InputHandler<F> 
 where
-    F: Fn(usize, u128) -> super::Signal + Sync + Send
+    F: Fn(usize, u128) -> super::Signal + Sync + Send + ?Sized
 {
-    pub fn new(func: F) -> Self{
+    pub fn new(func: Box<F>) -> Self{
         Self {
-            handler: Box::new(func)
+            handler: func
         }
     }
 }
@@ -62,11 +62,11 @@ where
 
 impl <F> OutputHandler<F> 
 where
-    F: Fn(usize, u128, super::Signal) + Sync + Send
+    F: Fn(usize, u128, super::Signal) + Sync + Send + ?Sized
 {
-    pub fn new(func: F) -> Self{
+    pub fn new(func: Box<F>) -> Self{
         Self {
-            handler: Box::new(func)
+            handler: func
         }
     }
 }

@@ -2,4 +2,5 @@
 // tokenizer and turns it into an abstract syntax tree
 // which may be used to produce a circuit object for simulation.
 
+mod constructs;
 mod rust;

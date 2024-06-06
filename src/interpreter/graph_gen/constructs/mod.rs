@@ -13,11 +13,62 @@ fn latch(module: &mut RzModule, set: SignalID, rst: SignalID) -> (SignalID, Sign
     return (q, q_not);
 }
 
-fn flipflop(module: &mut RzModule, clk: SignalID, rst: SignalID, dat: SignalID, ce: Option<SignalID>) -> SignalID {
-    if let Some(id) = ce {
-        unimplemented!("I make no guarantees as to if I will support clocked components")
-    } else {
-        unimplemented!("I make no guarantees as to if I will support clocked components")
+fn flipflop(module: &mut RzModule, clk: SignalID, rst: SignalID, dat: SignalID, edge_trigger: Option<bool>) -> SignalID {
+    todo!("reset functionality not implemented ")
+    match edge_trigger {
+        Some(true) => {
+            // construct inverse signals for clk and dat
+            let inv_clk = module.rz_alloc();
+            module.mk_not(inv_clk, clk).unwrap();
+            let inv_dat = module.rz_alloc();
+            module.mk_not(inv_dat, dat).unwrap();
+
+            // construct sub as a latch which is enabled on clk low
+            let (sub_set, sub_rst) = (module.rz_alloc(), module.rz_alloc());
+            module.mk_and(sub_set, (inv_clk, dat)).unwrap();
+            module.mk_and(sub_rst, (inv_clk, inv_dat)).unwrap();
+            let (sub_q, sub_q_not) = latch(module, sub_set, sub_rst);
+
+            // construct main as a latch which is enabled on clk high
+            let (main_set, main_rst) = (module.rz_alloc(), module.rz_alloc());
+            module.mk_and(main_set, (clk, sub_q)).unwrap();
+            module.mk_and(main_rst, (clk, sub_q_not)).unwrap();
+            let (main_q, _) = latch(module, main_set, main_rst);
+
+            return main_q;
+        },
+        Some(false) => {
+            // construct inverse singals for clk and dat 
+            let inv_clk = module.rz_alloc();
+            module.mk_not(inv_clk, clk).unwrap();
+            let inv_dat = module.rz_alloc();
+            module.mk_not(inv_dat, dat).unwrap();
+
+            // construct sub as a latch which is enabled on clk high
+            let (sub_set, sub_rst) = (module.rz_alloc(), module.rz_alloc());
+            module.mk_and(sub_set, (clk, dat)).unwrap();
+            module.mk_and(sub_rst, (clk, inv_dat)).unwrap();
+            let (sub_q, sub_q_not) = latch(module, sub_set, sub_rst);
+            
+            // construct main as a latch which is enabled on clk low
+            let (main_set, main_rst) = (module.rz_alloc(), module.rz_alloc());
+            module.mk_and(main_set, (inv_clk, sub_q)).unwrap();
+            module.mk_and(main_rst, (inv_clk, sub_q_not)).unwrap();
+            let (main_q,_) = latch(module, main_set, main_rst);
+
+            return main_q;
+        }, 
+        None => {
+            let inv_dat = module.rz_alloc();
+            module.mk_not(inv_dat, dat).unwrap();
+
+            let (set, rst) = (module.rz_alloc(),module.rz_alloc());
+            module.mk_and(set, (clk, dat)).unwrap();
+            module.mk_and(rst, (clk, inv_dat)).unwrap();
+            let (main_q,_) = latch(module, set, rst);
+
+            return main_q;
+        }
     }
 }
 

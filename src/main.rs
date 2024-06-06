@@ -1,5 +1,5 @@
 mod user_interface;
-mod inerpreter;
+mod interpreter;
 mod sim;
 
 

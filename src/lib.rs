@@ -1,2 +1,2 @@
-mod inerpreter;
+mod interpreter;
 mod sim;

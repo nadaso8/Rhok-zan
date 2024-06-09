@@ -1,74 +1,71 @@
 // This module stores various constructor functions for implementations of common circuit elements such as latches, flipflops 
 // or other verilog primitives which are in actuality multi node graph constructs.
 
+use eframe::glow::FALSE;
+
 use super::rust::*;
 use crate::sim::circuit::operation::SignalID;
 
 /// Constructs a latch in module taking nodes set and reset as it's inputsl.
 /// The returned tuple is formatted as: (Q, !Q)
-fn latch(module: &mut RzModule, set: SignalID, rst: SignalID) -> (SignalID, SignalID) {
+fn latch(module: &mut RzModule, set: SignalID, rst: SignalID) -> Result<(SignalID, SignalID), String> {
     let (q, q_not) = (module.rz_alloc(), module.rz_alloc());
-    module.mk_nor(q, (rst,q_not)).unwrap();
-    module.mk_nor(q_not, (set,q)).unwrap();
-    return (q, q_not);
+    if let Err(msg) = module.mk_nor(q, (rst,q_not)) {
+        return Result::Err(msg);
+    }
+    if let Err(msg) = module.mk_nor(q_not, (set,q)) {
+        return Result::Err(msg);
+    }
+
+    return Result::Ok((q, q_not));
 }
 
-fn flipflop(module: &mut RzModule, clk: SignalID, rst: SignalID, dat: SignalID, edge_trigger: Option<bool>) -> SignalID {
-    todo!("reset functionality not implemented ")
-    match edge_trigger {
-        Some(true) => {
-            // construct inverse signals for clk and dat
-            let inv_clk = module.rz_alloc();
-            module.mk_not(inv_clk, clk).unwrap();
-            let inv_dat = module.rz_alloc();
-            module.mk_not(inv_dat, dat).unwrap();
+fn flipflop(module: &mut RzModule, clk: SignalID, rst: SignalID, dat: SignalID, clk_edge: Option<bool>, rst_edge: Option<bool>) -> Result<SignalID, String> {
+    match (clk_edge, rst_edge) {
+        // non edge triggered clock sync reset
+        (None, None) => {
 
-            // construct sub as a latch which is enabled on clk low
-            let (sub_set, sub_rst) = (module.rz_alloc(), module.rz_alloc());
-            module.mk_and(sub_set, (inv_clk, dat)).unwrap();
-            module.mk_and(sub_rst, (inv_clk, inv_dat)).unwrap();
-            let (sub_q, sub_q_not) = latch(module, sub_set, sub_rst);
-
-            // construct main as a latch which is enabled on clk high
-            let (main_set, main_rst) = (module.rz_alloc(), module.rz_alloc());
-            module.mk_and(main_set, (clk, sub_q)).unwrap();
-            module.mk_and(main_rst, (clk, sub_q_not)).unwrap();
-            let (main_q, _) = latch(module, main_set, main_rst);
-
-            return main_q;
         },
-        Some(false) => {
-            // construct inverse singals for clk and dat 
-            let inv_clk = module.rz_alloc();
-            module.mk_not(inv_clk, clk).unwrap();
-            let inv_dat = module.rz_alloc();
-            module.mk_not(inv_dat, dat).unwrap();
+        
+        // non edge triggered clock posedge reset
+        (None, Some(true)) => {
 
-            // construct sub as a latch which is enabled on clk high
-            let (sub_set, sub_rst) = (module.rz_alloc(), module.rz_alloc());
-            module.mk_and(sub_set, (clk, dat)).unwrap();
-            module.mk_and(sub_rst, (clk, inv_dat)).unwrap();
-            let (sub_q, sub_q_not) = latch(module, sub_set, sub_rst);
+        },
+
+        // non edge triggered clock posedge reset
+        (None, Some(false)) => {
+
+        },
+
+        // posedge clk sync reset
+        (Some(true),None) => {
+
+        },
+
+        // negedte clk sync reset
+        (Some(false),None) => {
+
+        },
+
+        // posedge clk posedge reset
+        (Some(true), Some(true)) => {
+
+        },
+
+        // invalid verilog
+        (Some(false), Some(true)) => {
+            Result::Err("Differing edge triggers in a single always block are unsupported".to_string())
+        },
+
+        // invalid verilog 
+        (Some(true), Some(false)) => {
+            Result::Err("Differing edge triggers in a single always block are unsupported".to_string())
+        },
+
+        // negedge clk negedge reset
+        (Some(false), Some(false)) => {
             
-            // construct main as a latch which is enabled on clk low
-            let (main_set, main_rst) = (module.rz_alloc(), module.rz_alloc());
-            module.mk_and(main_set, (inv_clk, sub_q)).unwrap();
-            module.mk_and(main_rst, (inv_clk, sub_q_not)).unwrap();
-            let (main_q,_) = latch(module, main_set, main_rst);
-
-            return main_q;
-        }, 
-        None => {
-            let inv_dat = module.rz_alloc();
-            module.mk_not(inv_dat, dat).unwrap();
-
-            let (set, rst) = (module.rz_alloc(),module.rz_alloc());
-            module.mk_and(set, (clk, dat)).unwrap();
-            module.mk_and(rst, (clk, inv_dat)).unwrap();
-            let (main_q,_) = latch(module, set, rst);
-
-            return main_q;
-        }
+        },
     }
 }
 

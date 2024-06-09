@@ -24,7 +24,41 @@ fn flipflop(module: &mut RzModule, clk: SignalID, rst: SignalID, dat: SignalID, 
     match (clk_edge, rst_edge) {
         // non edge triggered clock sync reset
         (None, None) => {
+            // generate inverse data 
+            let inv_dat = module.rz_alloc();
+            if let Err(msg) = module.mk_not(inv_dat, dat) {
+                return Result::Err(msg);
+            }
 
+            // generate inverse reset
+            let inv_rst = module.rz_alloc();
+            if let Err(msg) = module.mk_not(inv_rst, rst) {
+                return Result::Err(msg);
+            }
+
+            // generate set condition
+            let set_cond = module.rz_alloc();
+            if let Err(msg) = module.mk_and(set_cond, (dat, inv_rst)) {
+                return Result::Err(msg);
+            }
+
+            // generate reset condition
+            let rst_cond = module.rz_alloc();
+            if let Err(msg) = module.mk_and(rst, (rst, inv_dat)) {
+                return Result::Err(msg);
+            }
+
+            // generate clock gate 
+            let (set, rst) = (module.rz_alloc(), module.rz_alloc());
+            if let Err(msg) = module.mk_and(set, (clk, set)) {return Result::Err(msg);}
+            if let Err(msg) = module.mk_and(rst, (clk, rst)) {return Result::Err(msg);}
+
+
+            // generate latch and return Q
+            match latch(module, set, rst) {
+                Ok((return_val, _)) => Result::Ok(return_val),
+                Err(msg) => Result::Err(msg)
+            }
         },
         
         // non edge triggered clock posedge reset

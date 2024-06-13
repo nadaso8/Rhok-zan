@@ -1,109 +1,54 @@
 // This module stores various constructor functions for implementations of common circuit elements such as latches, flipflops 
 // or other verilog primitives which are in actuality multi node graph constructs.
 
-use eframe::glow::FALSE;
-
 use super::rust::*;
 use crate::sim::circuit::operation::SignalID;
 
 /// Constructs a latch in module taking nodes set and reset as it's inputsl.
-/// The returned tuple is formatted as: (Q, !Q)
+/// The returned tuple is formatted as: (Q, Qbar)
 fn latch(module: &mut RzModule, set: SignalID, rst: SignalID) -> Result<(SignalID, SignalID), String> {
-    let (q, q_not) = (module.rz_alloc(), module.rz_alloc());
-    if let Err(msg) = module.mk_nor(q, (rst,q_not)) {
+    let (q, qbar) = (module.rz_alloc(), module.rz_alloc());
+    if let Err(msg) = module.mk_nor(q, (rst,qbar)) {
         return Result::Err(msg);
     }
-    if let Err(msg) = module.mk_nor(q_not, (set,q)) {
+    if let Err(msg) = module.mk_nor(qbar, (set,q)) {
         return Result::Err(msg);
     }
 
-    return Result::Ok((q, q_not));
+    return Result::Ok((q, qbar));
 }
 
-fn flipflop(module: &mut RzModule, clk: SignalID, rst: SignalID, dat: SignalID, clk_edge: Option<bool>, rst_edge: Option<bool>) -> Result<SignalID, String> {
-    match (clk_edge, rst_edge) {
-        // non edge triggered clock sync reset
-        (None, None) => {
-            // generate inverse data 
-            let inv_dat = module.rz_alloc();
-            if let Err(msg) = module.mk_not(inv_dat, dat) {
-                return Result::Err(msg);
-            }
+/// Constructs a D Latch with enable pin.
+/// The returned tuple is formatted as: (Q, Qbar)
+fn d_latch(module: &mut RzModule, dat: SignalID, en: SignalID) -> Result<(SignalID, SignalID), String> {
+    let dat_bar = module.rz_alloc();
+    let en_gate = (module.rz_alloc(), module.rz_alloc());
+    
+    if let Err(msg) = module.mk_not(dat_bar, dat) {
+        return Result::Err(msg);
+    }
 
-            // generate inverse reset
-            let inv_rst = module.rz_alloc();
-            if let Err(msg) = module.mk_not(inv_rst, rst) {
-                return Result::Err(msg);
-            }
+    if let Err(msg) = module.mk_and(en_gate.0, (en, dat)) {
+        return Result::Err(msg);
+    }
 
-            // generate set condition
-            let set_cond = module.rz_alloc();
-            if let Err(msg) = module.mk_and(set_cond, (dat, inv_rst)) {
-                return Result::Err(msg);
-            }
+    if let Err(msg) = module.mk_and(en_gate.1, (en, dat_bar)) {
+        return Result::Err(msg);
+    }
 
-            // generate reset condition
-            let rst_cond = module.rz_alloc();
-            if let Err(msg) = module.mk_and(rst, (rst, inv_dat)) {
-                return Result::Err(msg);
-            }
-
-            // generate clock gate 
-            let (set, rst) = (module.rz_alloc(), module.rz_alloc());
-            if let Err(msg) = module.mk_and(set, (clk, set)) {return Result::Err(msg);}
-            if let Err(msg) = module.mk_and(rst, (clk, rst)) {return Result::Err(msg);}
-
-
-            // generate latch and return Q
-            match latch(module, set, rst) {
-                Ok((return_val, _)) => Result::Ok(return_val),
-                Err(msg) => Result::Err(msg)
-            }
-        },
-        
-        // non edge triggered clock posedge reset
-        (None, Some(true)) => {
-
-        },
-
-        // non edge triggered clock posedge reset
-        (None, Some(false)) => {
-
-        },
-
-        // posedge clk sync reset
-        (Some(true),None) => {
-
-        },
-
-        // negedte clk sync reset
-        (Some(false),None) => {
-
-        },
-
-        // posedge clk posedge reset
-        (Some(true), Some(true)) => {
-
-        },
-
-        // invalid verilog
-        (Some(false), Some(true)) => {
-            Result::Err("Differing edge triggers in a single always block are unsupported".to_string())
-        },
-
-        // invalid verilog 
-        (Some(true), Some(false)) => {
-            Result::Err("Differing edge triggers in a single always block are unsupported".to_string())
-        },
-
-        // negedge clk negedge reset
-        (Some(false), Some(false)) => {
-            
-        },
+    return match latch(module, en_gate.0, en_gate.1) {
+        Err(msg) => Result::Err(msg),
+        Ok(output) => Result::Ok(output)
     }
 }
 
-fn register(module: &mut RzModule, clk: Option<SignalID>, rst: SignalID, dat: &[SignalID], ce: Option<SignalID>) -> Box<[SignalID]> {
+/// Constructs a negative edge triggered flipflop with asyncronous clear
+/// The returned tuple is formatted as: (Q, Qbar)
+fn ne_d_flipflop(module: &mut RzModule, clk: SignalID, dat: SignalID) -> Result<(SignalID, SignalID), String> {
+    unimplemented!("I make no guarantees as to if I will support clocked components")
+}
+
+fn register(module: &mut RzModule, clk: SignalID, rst: SignalID, dat: &[SignalID], ce: Option<SignalID>) -> Box<[SignalID]> {
     unimplemented!("I make no guarantees as to if I will support clocked components")
 }
 

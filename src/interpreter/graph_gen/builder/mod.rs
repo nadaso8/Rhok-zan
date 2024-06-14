@@ -11,8 +11,6 @@ pub struct RzModule {
 }
 
 impl RzModule {
-
-
     /// Make an empty RzModule object
     pub fn new() -> Self {
         Self{

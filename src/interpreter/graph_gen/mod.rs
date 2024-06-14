@@ -3,4 +3,4 @@
 // which may be used to produce a circuit object for simulation.
 
 mod primitives;
-mod rust;
+mod builder;

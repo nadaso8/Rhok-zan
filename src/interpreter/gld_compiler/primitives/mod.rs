@@ -2,7 +2,7 @@
 // or other verilog primitives which are in actuality multi node graph constructs.
 
 mod memory_elements {
-    use crate::interpreter::graph_gen::builder::*;
+    use crate::interpreter::gld_compiler::builder::*;
     use crate::sim::circuit::operation::SignalID;
 
     /// Constructs a latch in module taking nodes set and reset as it's inputsl.
@@ -83,7 +83,7 @@ mod memory_elements {
 }
 
 mod logic {
-    use crate::interpreter::graph_gen::builder::*;
+    use crate::interpreter::gld_compiler::builder::*;
     use crate::sim::circuit::operation::SignalID;
 
     fn comparitor() {
@@ -120,7 +120,7 @@ mod logic {
 }
 
 mod operators {
-    use crate::interpreter::graph_gen::builder::*;
+    use crate::interpreter::gld_compiler::builder::*;
     use crate::sim::circuit::operation::SignalID;
 
     fn full_adder() {

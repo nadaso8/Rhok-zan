@@ -16,7 +16,8 @@ use crate::sim::circuit::operation::Operation;
 /// start gui
 pub fn start_gui() -> Result<(), eframe::Error> {
     let opts = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size((480.0, 360.0)),
+        viewport: egui::ViewportBuilder::default()
+        .with_inner_size((480.0, 360.0)),
         ..Default::default()
     };
 
@@ -190,7 +191,7 @@ mod test {
     use super::start_gui;
 
     #[test]
-    fn dummyui() {
+    fn dummy_ui() {
         start_gui().expect("ui failed to start or crashed");
     }
 }

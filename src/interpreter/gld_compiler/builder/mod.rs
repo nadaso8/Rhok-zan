@@ -6,12 +6,12 @@ use crate::sim::circuit::{
 };
 
 #[derive(Debug)]
-pub struct RzModule {
+pub struct Module {
     desc: Vec<Option<Operation>>,
 }
 
-impl RzModule {
-    /// Make an empty RzModule object
+impl Module {
+    /// Make an empty Module object
     pub fn new() -> Self {
         Self{
             desc: Vec::new(),
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn test_case_latch() {
         const TPI: usize = 8;
-        let mut latch = RzModule::new();
+        let mut latch = Module::new();
 
         let (S,R) = (latch.rz_alloc(), latch.rz_alloc());
         latch.mk_input(

@@ -10,6 +10,4 @@ mod rz_asm;
 
 enum SourceTokenStream <'a>{
     Verilog(Pairs<'a, verilog::Rule>),
-    VHDL(Pairs<'a, vhdl::Rule>),
-    RzAsm(Pairs<'a, rz_asm::Rule>)
 }

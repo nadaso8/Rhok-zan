@@ -192,6 +192,10 @@ mod tests {
     #[test]
     fn test_case_latch() {
         const TPI: usize = 8;
+        const ALWAYS_PRINT: bool = true;
+        const PRINT_Q: bool = true;
+        const PRINT_Q_NOT: bool = true;
+
         let mut latch = Module::new();
 
         let (S,R) = (latch.rz_alloc(), latch.rz_alloc());
@@ -219,13 +223,15 @@ mod tests {
         let outputs = (latch.rz_alloc(), latch.rz_alloc());
         latch.mk_output(outputs.0, Q, 
             |index, tick, signal| {
-                if tick % TPI as u128 == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
+                let should_print = tick % TPI as u128;
+                if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
                 return;
             }
         ).unwrap();
         latch.mk_output(outputs.1, Q_not, 
             |index, tick, signal| {
-                if tick % TPI as u128 == 0 {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
+                let should_print = tick % TPI as u128;
+                if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q_NOT {println!("Index: {} is {} on Tick: {}", index, signal, tick)};
                 return;
             }
         ).unwrap();
@@ -234,6 +240,6 @@ mod tests {
         for _ in 0..=256 {
             circuit.tick();
         }
-        println!("Q -> {}, !Q -> {}", Q.0, Q_not.0);
+        println!("Q -> {}, !Q -> {}", outputs.0.0, outputs.1.0);
     }
 }

@@ -1,2 +1,2 @@
-mod interpreter;
+mod synth;
 mod sim;

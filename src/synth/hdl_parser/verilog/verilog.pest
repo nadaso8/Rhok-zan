@@ -1,6 +1,7 @@
 /// this module is based on the grammar specified here => https://www.verilog.com/VerilogBNF.html
+// due to issues with reference formal grammar I'm putting this on hold
 
-    // SOURCE_TEXT
+// SOURCE_TEXT
     source_text = {description*}
     description = {module|UDP}
     module = {name_of_module ~ list_of_ports? ~ ";" ~ module_item* ~ "endmodule"}

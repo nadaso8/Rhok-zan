@@ -1,2 +1,2 @@
-mod synth;
 mod sim;
+mod synth;

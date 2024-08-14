@@ -1,1 +1,1 @@
-//pub mod hdl_parser;
+mod netlist;

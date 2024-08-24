@@ -1,61 +1,45 @@
 // This module is the basis for the Rhok'zan graphical user interface
 // code pretaining to command line execution can be found in main.
 
-use std::process::exit;
-use eframe::egui::{
-    self,
-    Sense,
-    Key,
-    epaint::Hsva,
-    vec2,
-    Stroke,
-    TextEdit
-};
 use crate::sim::circuit::operation::Operation;
+use eframe::egui::{self, epaint::Hsva, vec2, Key, Sense, Stroke, TextEdit};
+use std::process::exit;
 
 /// start gui
 pub fn start_gui() -> Result<(), eframe::Error> {
     let opts = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-        .with_inner_size((480.0, 360.0)),
+        viewport: egui::ViewportBuilder::default().with_inner_size((480.0, 360.0)),
         ..Default::default()
     };
 
-    eframe::run_native(
-        "Rhok'zan",
-        opts, 
-        Box::new(|cc| {
-            Box::<RzGui>::default()
-        })
-    ).unwrap();
+    eframe::run_native("Rhok'zan", opts, Box::new(|cc| Box::<RzGui>::default())).unwrap();
 
     return Result::Ok(());
 }
 
-
 #[derive(Debug, Clone)]
 enum RzPannel {
-    Edit{
-        source_built: bool
-    },
-    Sim{
-
-    },
+    Edit { source_built: bool },
+    Sim {},
 }
 
 impl Default for RzPannel {
     fn default() -> Self {
-        Self::Edit { source_built: false }
+        Self::Edit {
+            source_built: false,
+        }
     }
 }
 
 enum RzViewer {
     Gld(Box<[Operation]>),
     Rtl(),
-    None
+    None,
 }
 impl Default for RzViewer {
-    fn default() -> Self {Self::None}
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 struct RzGui {
@@ -65,19 +49,19 @@ struct RzGui {
     cmd: String,
     cmd_interupt: bool,
     show_side_pannel: bool,
-    exit_confirm: bool
+    exit_confirm: bool,
 }
 
 impl Default for RzGui {
     fn default() -> Self {
-        Self {   
+        Self {
             ui_pannel: RzPannel::default(),
             graph: RzViewer::default(),
             source: "".to_string(),
             cmd: "".to_string(),
             cmd_interupt: false,
             show_side_pannel: false,
-            exit_confirm: false
+            exit_confirm: false,
         }
     }
 }
@@ -85,15 +69,13 @@ impl Default for RzGui {
 impl eframe::App for RzGui {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         match self.cmd_interupt {
-            true => {
-
-            },
+            true => {}
             false => {
                 // Describe main UI Window
-                egui::CentralPanel::default().show(ctx, |ui|{
+                egui::CentralPanel::default().show(ctx, |ui| {
                     if self.exit_confirm {
-                        ui.vertical_centered(|confirm|{
-                            confirm.add_space(confirm.available_height()/3.0);
+                        ui.vertical_centered(|confirm| {
+                            confirm.add_space(confirm.available_height() / 3.0);
                             confirm.heading("Are you sure you want to exit?");
                             confirm.add_space(10.0);
                             if confirm.button("YES").clicked() {
@@ -111,26 +93,37 @@ impl eframe::App for RzGui {
                                     edit_ui.heading("Rhok'zan Editor");
                                     edit_ui.horizontal_centered(|editor| {
                                         let padding = vec2(12.0, 20.0);
-                                        let (text, graph) = editor.clip_rect().shrink2(padding).split_left_right_at_fraction(0.33);
-                                        if editor.add_sized(
-                                            (text.width(), text.height()), 
-                                            TextEdit::multiline(&mut self.source)
-                                                .code_editor()
-                                                .clip_text(false)
-                                                .desired_width(text.width())
-                                        ).changed() {
+                                        let (text, graph) = editor
+                                            .clip_rect()
+                                            .shrink2(padding)
+                                            .split_left_right_at_fraction(0.33);
+                                        if editor
+                                            .add_sized(
+                                                (text.width(), text.height()),
+                                                TextEdit::multiline(&mut self.source)
+                                                    .code_editor()
+                                                    .clip_text(false)
+                                                    .desired_width(text.width()),
+                                            )
+                                            .changed()
+                                        {
                                             source_built = false;
                                         }
 
-                                        let graph_render = editor.allocate_painter(graph.size(), Sense::hover()).1;
-                                        graph_render.rect_stroke(graph_render.clip_rect(), 1.0, Stroke::new(3.0, Hsva::new(0.0, 0.0, 1.0, 0.1)));
+                                        let graph_render =
+                                            editor.allocate_painter(graph.size(), Sense::hover()).1;
+                                        graph_render.rect_stroke(
+                                            graph_render.clip_rect(),
+                                            1.0,
+                                            Stroke::new(3.0, Hsva::new(0.0, 0.0, 1.0, 0.1)),
+                                        );
                                     });
                                 });
                             }
-                            RzPannel::Sim {  } => {
+                            RzPannel::Sim {} => {
                                 ui.horizontal_centered(|ui| ui.heading("Rhok'zan Simulator"));
                                 todo!()
-                            },
+                            }
                         }
                     }
                 });
@@ -141,7 +134,7 @@ impl eframe::App for RzGui {
                 }
                 // Describe side menu
                 egui::SidePanel::left("Menu").default_width(160.0).show_animated(ctx,
-                    self.show_side_pannel, 
+                    self.show_side_pannel,
                     |menu| {
                         menu.vertical_centered_justified(|menu| {
                             menu.heading("Rhok'zan Menu");
@@ -182,7 +175,6 @@ impl eframe::App for RzGui {
                 );
             }
         }
-
     }
 }
 

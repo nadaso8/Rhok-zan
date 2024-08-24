@@ -1,5 +1,3 @@
-use egui::debug_text;
-
 /// A list of all netlists used by a design Index 0 is considered the top level module.
 /// Instantiations called in the top level module there after will search through the
 /// list of instantiated designs incrementing appending to the netlists vec if they have not already been instantiated.

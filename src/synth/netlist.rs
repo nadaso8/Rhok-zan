@@ -1,13 +1,24 @@
+use handle_types::*;
+
 pub struct Design {
     netlists: Vec<Netlist>,
 }
 
 impl Design {
-    fn get_netlist(&self, netlist: NetlistID) -> &Netlist {
-        todo!()
+    fn get_netlist(&self, netlist_handle: NetlistID) -> &Netlist {
+        self.netlists.get(netlist_handle.0).unwrap()
     }
 }
-pub struct NetlistID(usize);
+
+impl From<Design> for Box<[crate::sim::circuit::operation::Operation]> {
+    fn from(value: Design) -> Self {
+        use crate::sim::circuit::builder;
+        let mut cut = builder::Module::new();
+        let top = value.get_netlist(NetlistID(0));
+
+        cut.into_desc()
+    }
+}
 
 pub struct Netlist {
     nets: Vec<Net>,
@@ -27,11 +38,6 @@ pub enum Net {
         clock: ClockID,
     },
 }
-
-pub struct NetID(usize);
-pub struct CellID(usize);
-pub struct PortID(usize);
-pub struct ClockID(usize);
 
 pub enum Cell {
     Not {
@@ -68,16 +74,17 @@ pub enum Cell {
         rhs: NetID,
         result: NetID,
     },
-    Module {
-        description: NetlistID,
-        inputs: Vec<NetID>,
-        outputs: Vec<NetID>,
-    },
     Input {
         port: PortID,
     },
     Output {
+        input: NetID,
         port: PortID,
+    },
+    Module {
+        description: NetlistID,
+        inputs: Vec<NetID>,
+        outputs: Vec<NetID>,
     },
 }
 
@@ -91,9 +98,20 @@ pub enum Sensativity {
     LevelSensistive(NetID),
 }
 
+mod handle_types {
+    pub struct NetlistID(pub usize);
+    pub struct NetID(pub usize);
+    pub struct CellID(pub usize);
+    pub struct PortID(pub usize);
+    pub struct ClockID(pub usize);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn full_adder() {}
     #[test]
     fn ripple_adder() {}
 }

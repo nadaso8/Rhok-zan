@@ -13,10 +13,37 @@ impl Design {
 impl From<Design> for Box<[crate::sim::circuit::operation::Operation]> {
     fn from(value: Design) -> Self {
         use crate::sim::circuit::builder;
-        let mut cut = builder::Module::new();
-        let top = value.get_netlist(NetlistID(0));
 
-        cut.into_desc()
+        let mut circuit_under_construction = builder::Module::new();
+        let top_level_module = value.get_netlist(NetlistID(0));
+        let mut handle_translation = std::collections::hash_map::HashMap::new();
+
+        for cell in top_level_module.cells.as_slice() {
+            match cell {
+                Cell::Not { input, result } => {
+                    let new_loc = circuit_under_construction.rz_alloc();
+                    handle_translation.insert((NetlistID(0), result), new_loc);
+                    let input_signal = handle_translation.get(&(NetlistID(0), input)).unwrap();
+                    circuit_under_construction
+                        .mk_not(new_loc, *input_signal)
+                        .unwrap();
+                }
+                Cell::And { lhs, rhs, result } => {}
+                Cell::Nand { lhs, rhs, result } => {}
+                Cell::Or { lhs, rhs, result } => {}
+                Cell::Nor { lhs, rhs, result } => {}
+                Cell::Xor { lhs, rhs, result } => {}
+                Cell::Xnor { lhs, rhs, result } => {}
+                Cell::Input { port } => {}
+                Cell::Output { input, port } => {}
+                Cell::Module {
+                    description,
+                    inputs,
+                    outputs,
+                } => {}
+            }
+        }
+        circuit_under_construction.into_desc()
     }
 }
 
@@ -99,10 +126,15 @@ pub enum Sensativity {
 }
 
 mod handle_types {
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct NetlistID(pub usize);
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct NetID(pub usize);
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CellID(pub usize);
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct PortID(pub usize);
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct ClockID(pub usize);
 }
 

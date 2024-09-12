@@ -1,49 +1,64 @@
 use handle_types::*;
 
+use crate::sim::circuit::{operation::SignalID, signal::Signal};
+
 pub struct Design {
     netlists: Vec<Netlist>,
+    inputs: Vec<
+        Box<dyn Fn(usize, u128) -> Signal + Sync + Send + 'static>,
+    >,
+    outputs:
+        Vec<Box<dyn Fn(usize, u128, Signal) + Sync + Send + 'static>>,
 }
 
+fn instantiate_cells(
+    design: &Design,
+    netlist_id: NetlistID,
+    input_ports: &[SignalID],
+    output_ports: &[SignalID],
+    circuit: &mut crate::sim::circuit::builder::Module,
+) -> Result<(), NetlistErr> {
+    let netlist = design.get_netlist(netlist_id);
+    let mut net_id_translation = std::collections::HashMap::new();
+    for cell in netlist.cells {
+        match cell {
+            Cell::And { lhs, rhs, result } => {
+                let result_sid = net_id_translation.entry(result).or_insert(default)
+            }
+            Cell::Nand { lhs, rhs, result } => {}
+            Cell::Or { lhs, rhs, result } => {}
+            Cell::Nor { lhs, rhs, result } => {}
+            Cell::Xor { lhs, rhs, result } => {}
+            Cell::Xnor { lhs, rhs, result } => {}
+            Cell::Not { input, result } => {}
+            Cell::Input { port } => {}
+            Cell::Output { input, port } => {}
+            Cell::Module {
+                description,
+                inputs,
+                outputs,
+            } => {},
+        }
+    }
+    return Ok(());
+}
 impl Design {
     fn get_netlist(&self, netlist_handle: NetlistID) -> &Netlist {
         self.netlists.get(netlist_handle.0).unwrap()
     }
-}
 
-impl From<Design> for Box<[crate::sim::circuit::operation::Operation]> {
-    fn from(value: Design) -> Self {
-        use crate::sim::circuit::builder;
+    fn as_box_slice(&self) -> Box<[crate::sim::circuit::operation::Operation]> {
+        use crate::sim::circuit;
+        let instantiate_cells = |design: &Design, netlist_id, circuit| {};
 
-        let mut circuit_under_construction = builder::Module::new();
-        let top_level_module = value.get_netlist(NetlistID(0));
-        let mut handle_translation = std::collections::hash_map::HashMap::new();
-
-        for cell in top_level_module.cells.as_slice() {
-            match cell {
-                Cell::Not { input, result } => {
-                    let new_loc = circuit_under_construction.rz_alloc();
-                    handle_translation.insert((NetlistID(0), result), new_loc);
-                    let input_signal = handle_translation.get(&(NetlistID(0), input)).unwrap();
-                    circuit_under_construction
-                        .mk_not(new_loc, *input_signal)
-                        .unwrap();
-                }
-                Cell::And { lhs, rhs, result } => {}
-                Cell::Nand { lhs, rhs, result } => {}
-                Cell::Or { lhs, rhs, result } => {}
-                Cell::Nor { lhs, rhs, result } => {}
-                Cell::Xor { lhs, rhs, result } => {}
-                Cell::Xnor { lhs, rhs, result } => {}
-                Cell::Input { port } => {}
-                Cell::Output { input, port } => {}
-                Cell::Module {
-                    description,
-                    inputs,
-                    outputs,
-                } => {}
-            }
+        const TOP_NETLIST_ID: NetlistID = NetlistID(0);
+        let mut circuit = circuit::builder::Module::new();
+        for input in self.inputs {
+            let input_loc = circuit.rz_alloc();
+            circuit.mk_input(loc, expr)
         }
-        circuit_under_construction.into_desc()
+        instantiate_cells(self, TOP_NETLIST_ID, , ,circuit);
+        return circuit.into_desc();
     }
 }
 
@@ -110,7 +125,7 @@ pub enum Cell {
     },
     Module {
         description: NetlistID,
-        inputs: Vec<NetID>,
+        inputs: Box<[NetID]>,
         outputs: Vec<NetID>,
     },
 }
@@ -125,6 +140,16 @@ pub enum Sensativity {
     LevelSensistive(NetID),
 }
 
+pub enum NetlistErr {
+    Unknown(String),
+    DuplicateNetID,
+}
+
+impl From<String> for NetlistErr {
+    fn from(value: String) -> Self {
+        NetlistErr::Unknown(value)
+    }
+}
 mod handle_types {
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct NetlistID(pub usize);

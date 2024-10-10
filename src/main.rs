@@ -1,7 +1,7 @@
 use user_interface::start_gui;
 
+mod compiler;
 mod sim;
-mod synth;
 mod user_interface;
 
 fn main() -> Result<(), &'static str> {

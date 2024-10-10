@@ -2,7 +2,7 @@
 use crate::sim::circuit::{operation::*, signal::*};
 use std::{u128, usize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Module {
     desc: Vec<Option<Operation>>,
 }

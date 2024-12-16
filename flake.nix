@@ -19,6 +19,15 @@
         cargo = rustToolchain.cargo;
         rustc = rustToolchain.rustc;
       };
+      libPath = with pkgs; lib.makeLibraryPath [
+        libGL
+        libxkbcommon
+        wayland
+        xorg.libX11
+        xorg.libXcursor
+        xorg.libXi
+        xorg.libXrandr
+      ];
     in
     {
 
@@ -28,11 +37,12 @@
 
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = (with pkgs; [
-
+          xorg.libxcb
         ]) ++ [
           rustToolchain
           rustPlatform.bindgenHook
         ];
+        LD_LIBRARY_PATH = libPath;
       };
 
       formatter.${system} = pkgs.nixpkgs-fmt;

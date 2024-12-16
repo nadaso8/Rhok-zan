@@ -1,8 +1,8 @@
-use user_interface::start_gui;
+use interface::start_gui;
 
 mod sim;
 mod synth;
-mod user_interface;
+mod interface;
 
 fn main() -> Result<(), &'static str> {
     match start_gui() {

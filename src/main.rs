@@ -10,4 +10,3 @@ fn main() -> Result<(), &'static str> {
         Err(_) => Result::Err("ui failed to start or crashed during operation"),
     }
 }
-

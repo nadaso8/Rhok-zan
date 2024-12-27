@@ -39,8 +39,9 @@
         buildInputs = (with pkgs; [
           xorg.libxcb
           libxml2
-          llvm_19
+          llvmPackages_19.libllvm
           llvmPackages_19.mlir
+
         ]) ++ [
           rustToolchain
           rustPlatform.bindgenHook

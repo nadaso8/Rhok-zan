@@ -2384,8 +2384,7 @@ dependencies = [
 [[package]]
 name = "mlir-sys"
 version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21b598f9c0fa7a453eeaa9fe419ae93759c94a66eb6f8a496d195ba596ae3c4d"
+source = "git+https://github.com/nadaso8/mlir-sys-nixos.compat.git#c89dac52e6a627e3144355c0bb3db4d7cb2e5fb8"
 dependencies = [
  "bindgen 0.71.1",
 ]

@@ -10,46 +10,6 @@
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   outputs = { self, nixpkgs, fenix, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -71,8 +31,20 @@
           xorg.libXcursor
           xorg.libXi
           xorg.libXrandr
-
         ];
+        llvmMLIR = pkgs.llvmPackages_19.libllvm.override {
+          src = pkgs.fetchFromGitHub {
+            owner = "llvm";
+            repo = "llvm-project";
+            rev = "llvmorg-19.1.4"; # Use the appropriate LLVM version tag
+            sha256 = "0cfmkzvj0a3s0nkrvkqmyfa78818iz3gp9pqsadpks5yrb9iy3h1";
+
+          };
+          devExtraCmakeFlags = [
+            "-DLLVM_ENABLE_PROJECTS=mlir"
+            "-DMLIR_ENABLE_BINDINGS_PYTHON=ON"
+          ];
+        };
       in
       {
 
@@ -83,9 +55,13 @@
           buildInputs = (with pkgs; [
             xorg.libxcb
             libxml2
-            llvmPackages_19.libllvm
-            llvmPackages_19.mlir
-          ]) ++ [
+
+
+
+
+
+
+          ] ++ [ llvmMLIR ]) ++ [
             rustToolchain
             rustPlatform.bindgenHook
           ];

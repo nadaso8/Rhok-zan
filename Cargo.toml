@@ -5,14 +5,11 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[patch.crates-io]
-mlir-sys = { git = "https://github.com/nadaso8/mlir-sys-nixos.compat.git" }
+# [patch.crates-io]
+# mlir-sys = { git = "https://github.com/nadaso8/mlir-sys-nixos.compat.git" }
 
 [dependencies]
-eframe = "0.26.0"
-egui = "0.26.0"
-egui_extras = { version = "0.27.2", features = ["svg"] }
-melior = "0.20.1"
+eframe = "0.31.0"
+nom = "8.0.0"
+petgraph = "0.7.1"
 rayon = "1.8.1"
-svg = "0.17.0"
-verilog = "0.0.1"

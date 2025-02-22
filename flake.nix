@@ -3,27 +3,31 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
-    fenix = {
-      url = "github:nix-community/fenix";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs"; # avoids duplicating nixpkgs
     };
-    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, fenix, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-        rustToolchain = fenix.packages.${system}.fromToolchainFile {
-          file = ./rust-toolchain.toml;
-          sha256 = "sha256-s1RPtyvDGJaX/BisLT+ifVfuhDT1nZkZ1NcK8sbwELM=";
-        };
-        rustPlatform = pkgs.makeRustPlatform {
-          # inherit (rustToolchain) cargo rustc;
-          cargo = rustToolchain.cargo;
-          rustc = rustToolchain.rustc;
-        };
-        libPath = with pkgs; lib.makeLibraryPath [
+  outputs = { self, nixpkgs, rust-overlay }:
+    let
+      system = "x86_64-linux";
+      pkgs = import nixpkgs { overlays = [ rust-overlay.overlays.default ]; inherit system; };
+      lib = nixpkgs.lib;
+      rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+
+      rustPlatform = pkgs.makeRustPlatform {
+        # inherit (rustToolchain) cargo rustc;
+        cargo = rustToolchain;
+        rustc = rustToolchain;
+      };
+    in
+    {
+
+      devShells.${system}.default = pkgs.mkShell {
+
+        # Set -rpath to specify graphics libraries required by egui
+        env.RUSTFLAGS = "-C link-args=-Wl,-rpath,${lib.makeLibraryPath (with pkgs; [
           libGL
           libxkbcommon
           wayland
@@ -31,44 +35,21 @@
           xorg.libXcursor
           xorg.libXi
           xorg.libXrandr
+        ])}";
+
+        buildInputs = (with pkgs; [
+          xorg.libxcb
+          libxml2
+          # llvmPackages_19.mlir
+        ]);
+
+        nativeBuildInputs = [
+          rustToolchain
+          rustPlatform.bindgenHook
         ];
-        llvmMLIR = pkgs.llvmPackages_19.libllvm.override {
-          src = pkgs.fetchFromGitHub {
-            owner = "llvm";
-            repo = "llvm-project";
-            rev = "llvmorg-19.1.4"; # Use the appropriate LLVM version tag
-            sha256 = "0cfmkzvj0a3s0nkrvkqmyfa78818iz3gp9pqsadpks5yrb9iy3h1";
 
-          };
-          devExtraCmakeFlags = [
-            "-DLLVM_ENABLE_PROJECTS=mlir"
-            "-DMLIR_ENABLE_BINDINGS_PYTHON=ON"
-          ];
-        };
-      in
-      {
+      };
 
-        packages.hello = pkgs.hello;
-        packages.default = self.packages.hello;
-
-        devShells.default = pkgs.mkShell {
-          buildInputs = (with pkgs; [
-            xorg.libxcb
-            libxml2
-
-
-
-
-
-
-          ] ++ [ llvmMLIR ]) ++ [
-            rustToolchain
-            rustPlatform.bindgenHook
-          ];
-          LD_LIBRARY_PATH = libPath;
-        };
-
-        formatter = pkgs.nixpkgs-fmt;
-      }
-    );
+      formatter.${system} = pkgs.nixpkgs-fmt;
+    };
 }

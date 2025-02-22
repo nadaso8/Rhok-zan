@@ -1,12 +1,12 @@
-use interface::start_gui;
+use interface::gui::gui_main;
 
+mod interface;
 mod sim;
 mod synth;
-mod interface;
 
-fn main() -> Result<(), &'static str> {
-    match start_gui() {
-        Ok(_) => Result::Ok(()),
-        Err(_) => Result::Err("ui failed to start or crashed during operation"),
-    }
+/// for now we just no questions asked run the gui
+/// eventualy I will make a proper cli and possibly
+/// tui interface
+fn main() {
+    gui_main().unwrap();
 }

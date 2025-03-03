@@ -1,6 +1,10 @@
-// This module describes a set of builder class used to constuct a digital circuit graph
+// This module describes the builder class used to constuct a digital circuit graph
+// it was adapted to use petraph and uses it kinda weirdly as a result
+// eventually this needs a full re-implementation.
+
 use crate::sim::circuit::{operation::*, signal::*};
-use std::{u128, usize};
+use petgraph::{prelude::StableDiGraph, stable_graph::NodeIndex};
+use std::{sync::Arc, u128, usize};
 
 #[derive(Debug)]
 pub struct Module {
@@ -22,7 +26,7 @@ impl Module {
         if let Some(op) = self.desc.get_mut(loc.0) {
             match op {
                 Option::None => {
-                    *op = Option::Some(Operation::Input(InputHandler::new(Box::new(expr))));
+                    *op = Option::Some(Operation::Input(InputHandler::new(Arc::new(expr))));
                     Result::Ok(())
                 }
                 Option::Some(_) => Result::Err(
@@ -39,14 +43,13 @@ impl Module {
     pub fn mk_output(
         &mut self,
         loc: SignalID,
-        input: SignalID,
+        var: SignalID,
         expr: impl Fn(usize, u128, Signal) + Sync + Send + 'static,
     ) -> Result<(), String> {
         if let Some(op) = self.desc.get_mut(loc.0) {
             match op {
                 Option::None => {
-                    *op =
-                        Option::Some(Operation::Output(input, OutputHandler::new(Box::new(expr))));
+                    *op = Option::Some(Operation::Output(var, OutputHandler::new(Arc::new(expr))));
                     Result::Ok(())
                 }
                 Option::Some(_) => Result::Err(
@@ -169,11 +172,11 @@ impl Module {
         }
     }
 
-    pub fn mk_not(&mut self, loc: SignalID, input: SignalID) -> Result<(), String> {
+    pub fn mk_not(&mut self, loc: SignalID, var: SignalID) -> Result<(), String> {
         if let Some(op) = self.desc.get_mut(loc.0) {
             match op {
                 Option::None => {
-                    *op = Option::Some(Operation::Not(input));
+                    *op = Option::Some(Operation::Not(var));
                     Result::Ok(())
                 }
                 Option::Some(_) => Result::Err(
@@ -187,14 +190,14 @@ impl Module {
         }
     }
 
-    /// Consumes self and converts it to type Box<[Operation]> replacing any Option::None
+    /// references self and converts it to type Box<[Operation]>' replacing any Option::None
     /// allocated locations with Opperation::Input<InputHandler<||Signal::HighImpedance>>.
-    pub fn into_desc(self) -> Box<[Operation]> {
+    pub fn into_desc(&self) -> Box<[Operation]> {
         let mut tmp = Vec::new();
-        for entry in self.desc {
+        for entry in &self.desc {
             match entry {
-                Some(op) => tmp.push(op),
-                None => tmp.push(Operation::Input(InputHandler::new(Box::new(|_, _| {
+                Some(op) => tmp.push(op.clone()),
+                None => tmp.push(Operation::Input(InputHandler::new(Arc::new(|_, _| {
                     Signal::HighImpedance
                 })))),
             }
@@ -204,8 +207,9 @@ impl Module {
 
     /// Allocates a location as none and returns allocated location's SignalID
     pub fn rz_alloc(&mut self) -> SignalID {
+        let id = SignalID(self.desc.len());
         self.desc.push(Option::None);
-        SignalID(self.desc.len() - 1)
+        id
     }
 }
 
@@ -217,7 +221,7 @@ mod tests {
     #[test]
     fn test_case_latch() {
         const TPI: usize = 8;
-        const ALWAYS_PRINT: bool = false;
+        const ALWAYS_PRINT: bool = true;
         const PRINT_Q: bool = true;
         const PRINT_Q_NOT: bool = false;
 

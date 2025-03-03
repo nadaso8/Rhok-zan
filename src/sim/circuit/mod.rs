@@ -119,19 +119,20 @@ mod tests {
     fn test_case_latch() {
         use operation::*;
         use signal::*;
+        use std::sync::Arc;
 
         const TPI: usize = 8;
 
         // build description
         let description = Box::new([
             Operation::Input(InputHandler {
-                handler: Box::new(|index, tick| match (tick / (TPI as u128 * 2)) % (2) {
+                handler: Arc::new(|index, tick| match (tick / (TPI as u128 * 2)) % (2) {
                     0 => Signal::False,
                     _ => Signal::True,
                 }),
             }),
             Operation::Input(InputHandler {
-                handler: Box::new(|index, tick| match (tick / (TPI as u128 * 4)) % (2) {
+                handler: Arc::new(|index, tick| match (tick / (TPI as u128 * 4)) % (2) {
                     0 => Signal::False,
                     _ => Signal::True,
                 }),
@@ -141,7 +142,7 @@ mod tests {
             Operation::Output(
                 SignalID(2),
                 OutputHandler {
-                    handler: Box::new(|index, tick, signal| {
+                    handler: Arc::new(|index, tick, signal| {
                         if tick % TPI as u128 == 0 {
                             println!("Index: {} is {} on Tick: {}", index, signal, tick)
                         };
@@ -152,7 +153,7 @@ mod tests {
             Operation::Output(
                 SignalID(3),
                 OutputHandler {
-                    handler: Box::new(|index, tick, signal| {
+                    handler: Arc::new(|index, tick, signal| {
                         if tick % TPI as u128 == 0 {
                             println!("Index: {} is {} on Tick: {}", index, signal, tick)
                         };

@@ -9,7 +9,7 @@ edition = "2021"
 # mlir-sys = { git = "https://github.com/nadaso8/mlir-sys-nixos.compat.git" }
 
 [dependencies]
-eframe = "0.31.0"
+eframe = "0.30.0"
 nom = "8.0.0"
-petgraph = "0.7.1"
+petgraph = "0.6"
 rayon = "1.8.1"

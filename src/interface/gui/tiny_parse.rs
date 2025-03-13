@@ -4,9 +4,9 @@ use nom::{
     branch::*,
     bytes::complete::{tag, take_while},
     character::complete::{
-        alpha1, alphanumeric1, anychar, multispace0, multispace1, one_of, usize,
+        alpha1, alphanumeric1, anychar, multispace0, multispace1, not_line_ending, one_of, usize,
     },
-    combinator::{rest, verify},
+    combinator::{rest, success, verify},
     error::FromExternalError,
     multi::{separated_list0, separated_list1},
     sequence::{delimited, pair, preceded, terminated},
@@ -233,5 +233,13 @@ fn parse_test(i: &str) -> IResult<&str, CMD> {
 /// a series of alpha characters delimited by whitespace
 /// may be an empty string
 fn name(i: &str) -> IResult<&str, &str> {
-    alt((delimited(multispace1, alpha1, multispace0), multispace0)).parse(i)
+    match nom::combinator::opt(preceded(
+        not_line_ending.and_then(multispace1),
+        alphanumeric1,
+    ))
+    .parse(i)
+    {
+        Ok((remainder, val)) => Ok((remainder, val.unwrap_or_else(|| ""))),
+        Err(err) => Err(err),
+    }
 }

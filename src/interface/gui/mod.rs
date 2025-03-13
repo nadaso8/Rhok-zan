@@ -2,11 +2,12 @@
 // code pretaining to command line execution can be found in main.
 mod tiny_parse;
 pub mod vizualizer;
-use std::io::Write;
+use std::io::{Read, Write};
 
 use crate::sim::*;
 use circuit::operation::SignalID;
 use eframe::egui::{self, lerp};
+use nom::Parser;
 use tiny_parse::*;
 
 /// start gui
@@ -82,137 +83,7 @@ impl eframe::App for GUI {
                             .frame(false),
                     );
                     if prompt_line.has_focus() && ctx.input(|i| i.key_pressed(egui::Key::Enter)) {
-                        let err_empty_stack = "Empty Stack: Allocate a location?";
-                        match parse_cmd(&self.prompt) {
-                            Ok((_, cmd)) => {
-                                match cmd {
-                                    CMD::Allocate { name } => {
-                                        let handle = self.module_desc.rz_alloc();
-                                        self.module_stack.push((name, handle));
-                                        self.prompt = "".to_string();
-                                    }
-                                    CMD::DefineNot { val } => {
-                                        if let Some((_name, handle)) = self.module_stack.pop() {
-                                            if let Result::Err(err) =
-                                                self.module_desc.mk_not(handle, SignalID(val))
-                                            {
-                                                self.warnings.push((err, 1.0));
-                                            }
-                                        } else {
-                                            self.warnings.push((err_empty_stack.to_string(), 1.0));
-                                        }
-                                    }
-                                    CMD::DefineAnd { lhs, rhs } => {
-                                        if let Some((_name, handle)) = self.module_stack.pop() {
-                                            if let Result::Err(err) = self.module_desc.mk_and(
-                                                handle,
-                                                SignalID(lhs),
-                                                SignalID(rhs),
-                                            ) {
-                                                self.warnings.push((err, 1.0));
-                                            }
-                                        } else {
-                                            self.warnings.push((err_empty_stack.to_string(), 1.0));
-                                        }
-                                    }
-                                    CMD::DefineOr { lhs, rhs } => {
-                                        if let Some((_name, handle)) = self.module_stack.pop() {
-                                            if let Result::Err(err) = self.module_desc.mk_or(
-                                                handle,
-                                                SignalID(lhs),
-                                                SignalID(rhs),
-                                            ) {
-                                                self.warnings.push((err, 1.0));
-                                            }
-                                        } else {
-                                            self.warnings.push((err_empty_stack.to_string(), 1.0));
-                                        }
-                                    }
-                                    CMD::DefineNand { lhs, rhs } => {
-                                        if let Some((_name, handle)) = self.module_stack.pop() {
-                                            if let Result::Err(err) = self.module_desc.mk_nand(
-                                                handle,
-                                                SignalID(lhs),
-                                                SignalID(rhs),
-                                            ) {
-                                                self.warnings.push((err, 1.0));
-                                            }
-                                        } else {
-                                            self.warnings.push((err_empty_stack.to_string(), 1.0));
-                                        }
-                                    }
-                                    CMD::DefineNor { lhs, rhs } => {
-                                        if let Some((_name, handle)) = self.module_stack.pop() {
-                                            if let Result::Err(err) = self.module_desc.mk_nor(
-                                                handle,
-                                                SignalID(lhs),
-                                                SignalID(rhs),
-                                            ) {
-                                                self.warnings.push((err, 1.0));
-                                            }
-                                        } else {
-                                            self.warnings.push((err_empty_stack.to_string(), 1.0));
-                                        }
-                                    }
-                                    CMD::DefineXor { lhs, rhs } => {
-                                        if let Some((_name, handle)) = self.module_stack.pop() {
-                                            if let Result::Err(err) = self.module_desc.mk_xor(
-                                                handle,
-                                                SignalID(lhs),
-                                                SignalID(rhs),
-                                            ) {
-                                                self.warnings.push((err, 1.0));
-                                            }
-                                        } else {
-                                            self.warnings.push((err_empty_stack.to_string(), 1.0));
-                                        }
-                                    }
-                                    CMD::DefineXnor { lhs, rhs } => {
-                                        if let Some((_name, handle)) = self.module_stack.pop() {
-                                            if let Result::Err(err) = self.module_desc.mk_xnor(
-                                                handle,
-                                                SignalID(lhs),
-                                                SignalID(rhs),
-                                            ) {
-                                                self.warnings.push((err, 1.0));
-                                            }
-                                        } else {
-                                            self.warnings.push((err_empty_stack.to_string(), 1.0));
-                                        }
-                                    }
-                                    CMD::Save { file_name } => {
-                                        match std::fs::File::create_new(file_name) {
-                                            Ok(mut file) => {
-                                                match file.write(self.src_txt.as_bytes()) {
-                                                    Err(err) => {
-                                                        self.warnings.push((format!("{err}"), 1.0))
-                                                    }
-                                                    _ => (),
-                                                }
-                                            }
-                                            Err(err) => self.warnings.push((format!("{err}"), 1.0)),
-                                        }
-                                    }
-                                    CMD::Load { file_name } => {
-                                        todo!()
-                                    }
-                                    CMD::Src => {
-                                        self.viewer_state = ViewerState::Src;
-                                    }
-                                    CMD::Graph => {
-                                        self.viewer_state = ViewerState::Graph;
-                                    }
-                                    CMD::Test => {
-                                        self.viewer_state = ViewerState::IOWaveforms;
-                                    }
-                                    _ => todo!("unhandled CMD type"),
-                                };
-                                self.prompt = "".to_string();
-                            }
-                            Err(err) => self
-                                .warnings
-                                .push((format!("Invalid Command: {}", err), 1.0)),
-                        }
+                        self.handle_cmd();
                         self.autofocus_prompt = true; // set to true so prompt re-aquires focus
                     } else if !prompt_line.has_focus() && self.autofocus_prompt {
                         prompt_line.request_focus();
@@ -247,6 +118,260 @@ impl Default for GUI {
             src_txt: String::new(),
             viewer_state: ViewerState::Graph,
             warnings: Vec::new(),
+        }
+    }
+}
+
+impl GUI {
+    /// Tries to parse a command from prompt and handles the command if one is parsed
+    fn handle_cmd(&mut self) {
+        let err_empty_stack = "Empty Stack: Allocate a location?"; // msg when user tries to pop from an empty stack
+
+        match parse_cmd(&self.prompt) {
+            Ok((_, cmd)) => {
+                match cmd {
+                    CMD::Allocate { name } => {
+                        let handle = self.module_desc.rz_alloc();
+                        self.module_stack.push((name, handle));
+                        self.prompt = "".to_string();
+                    }
+                    CMD::DefineNot { val } => {
+                        if let Some((_name, handle)) = self.module_stack.pop() {
+                            if let Result::Err(err) = self.module_desc.mk_not(handle, SignalID(val))
+                            {
+                                self.warnings.push((err, 1.0));
+                            }
+                        } else {
+                            self.warnings.push((err_empty_stack.to_string(), 1.0));
+                        }
+                    }
+                    CMD::DefineAnd { lhs, rhs } => {
+                        if let Some((_name, handle)) = self.module_stack.pop() {
+                            if let Result::Err(err) =
+                                self.module_desc
+                                    .mk_and(handle, SignalID(lhs), SignalID(rhs))
+                            {
+                                self.warnings.push((err, 1.0));
+                            }
+                        } else {
+                            self.warnings.push((err_empty_stack.to_string(), 1.0));
+                        }
+                    }
+                    CMD::DefineOr { lhs, rhs } => {
+                        if let Some((_name, handle)) = self.module_stack.pop() {
+                            if let Result::Err(err) =
+                                self.module_desc.mk_or(handle, SignalID(lhs), SignalID(rhs))
+                            {
+                                self.warnings.push((err, 1.0));
+                            }
+                        } else {
+                            self.warnings.push((err_empty_stack.to_string(), 1.0));
+                        }
+                    }
+                    CMD::DefineNand { lhs, rhs } => {
+                        if let Some((_name, handle)) = self.module_stack.pop() {
+                            if let Result::Err(err) =
+                                self.module_desc
+                                    .mk_nand(handle, SignalID(lhs), SignalID(rhs))
+                            {
+                                self.warnings.push((err, 1.0));
+                            }
+                        } else {
+                            self.warnings.push((err_empty_stack.to_string(), 1.0));
+                        }
+                    }
+                    CMD::DefineNor { lhs, rhs } => {
+                        if let Some((_name, handle)) = self.module_stack.pop() {
+                            if let Result::Err(err) =
+                                self.module_desc
+                                    .mk_nor(handle, SignalID(lhs), SignalID(rhs))
+                            {
+                                self.warnings.push((err, 1.0));
+                            }
+                        } else {
+                            self.warnings.push((err_empty_stack.to_string(), 1.0));
+                        }
+                    }
+                    CMD::DefineXor { lhs, rhs } => {
+                        if let Some((_name, handle)) = self.module_stack.pop() {
+                            if let Result::Err(err) =
+                                self.module_desc
+                                    .mk_xor(handle, SignalID(lhs), SignalID(rhs))
+                            {
+                                self.warnings.push((err, 1.0));
+                            }
+                        } else {
+                            self.warnings.push((err_empty_stack.to_string(), 1.0));
+                        }
+                    }
+                    CMD::DefineXnor { lhs, rhs } => {
+                        if let Some((_name, handle)) = self.module_stack.pop() {
+                            if let Result::Err(err) =
+                                self.module_desc
+                                    .mk_xnor(handle, SignalID(lhs), SignalID(rhs))
+                            {
+                                self.warnings.push((err, 1.0));
+                            }
+                        } else {
+                            self.warnings.push((err_empty_stack.to_string(), 1.0));
+                        }
+                    }
+                    CMD::Save { file_name } => match std::fs::File::create_new(file_name) {
+                        Ok(mut file) => match file.write(self.src_txt.as_bytes()) {
+                            Err(err) => self.warnings.push((format!("{err}"), 1.0)),
+                            _ => (),
+                        },
+                        Err(err) => self.warnings.push((format!("{err}"), 1.0)),
+                    },
+                    CMD::Load { file_name } => match std::fs::File::open(file_name) {
+                        Ok(mut file) => match file.read_to_string(&mut self.src_txt) {
+                            Err(err) => self.warnings.push((format!("{err}"), 1.0)),
+                            _ => (),
+                        },
+                        Err(err) => self.warnings.push((format!("{err}"), 1.0)),
+                    },
+                    CMD::Compile => {
+                        self.compile_src();
+                    }
+                    CMD::Src => {
+                        self.viewer_state = ViewerState::Src;
+                    }
+                    CMD::Graph => {
+                        self.viewer_state = ViewerState::Graph;
+                    }
+                    CMD::Test => {
+                        self.viewer_state = ViewerState::IOWaveforms;
+                    }
+                    _ => todo!("unhandled CMD type"),
+                };
+                self.prompt = "".to_string();
+            }
+            Err(err) => self
+                .warnings
+                .push((format!("Invalid Command: {}", err), 1.0)),
+        }
+    }
+
+    /// handles a series of commands related to graph construction warning the user if any invalid command types are found
+    fn compile_src(&mut self) {
+        let err_empty_stack = "Empty Stack: Allocate a location?"; // msg when user tries to pop from an empty stack
+
+        let cmds =
+            match nom::multi::separated_list0(nom::character::complete::line_ending, parse_cmd)
+                .parse(&self.src_txt)
+            {
+                Ok((r, cmds)) => cmds,
+                Err(err) => {
+                    self.warnings.push((format!("{err}"), 1.0)); // I might not be properly outputting parse errors here since I seem to be getting a silent fail
+                    return; // early return since cmds was not properly produced
+                }
+            };
+        for cmd in cmds {
+            match cmd {
+                CMD::Allocate { name } => {
+                    let handle = self.module_desc.rz_alloc();
+                    self.module_stack.push((name, handle));
+                    self.prompt = "".to_string();
+                }
+                CMD::DefineNot { val } => {
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) = self.module_desc.mk_not(handle, SignalID(val)) {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::DefineAnd { lhs, rhs } => {
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) =
+                            self.module_desc
+                                .mk_and(handle, SignalID(lhs), SignalID(rhs))
+                        {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::DefineOr { lhs, rhs } => {
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) =
+                            self.module_desc.mk_or(handle, SignalID(lhs), SignalID(rhs))
+                        {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::DefineNand { lhs, rhs } => {
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) =
+                            self.module_desc
+                                .mk_nand(handle, SignalID(lhs), SignalID(rhs))
+                        {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::DefineNor { lhs, rhs } => {
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) =
+                            self.module_desc
+                                .mk_nor(handle, SignalID(lhs), SignalID(rhs))
+                        {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::DefineXor { lhs, rhs } => {
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) =
+                            self.module_desc
+                                .mk_xor(handle, SignalID(lhs), SignalID(rhs))
+                        {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::DefineXnor { lhs, rhs } => {
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) =
+                            self.module_desc
+                                .mk_xnor(handle, SignalID(lhs), SignalID(rhs))
+                        {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::Save { .. } => self
+                    .warnings
+                    .push((format!("Ignored Invalid Command: save"), 1.0)),
+
+                CMD::Load { .. } => self
+                    .warnings
+                    .push((format!("Ignored Invalid Command: load"), 1.0)),
+                CMD::Src => self
+                    .warnings
+                    .push((format!("Ignored Invalid Command: src"), 1.0)),
+                CMD::Graph => self
+                    .warnings
+                    .push((format!("Ignored Invalid Command: graph"), 1.0)),
+                CMD::Test => self
+                    .warnings
+                    .push((format!("Ignored Invalid Command: test"), 1.0)),
+                _ => todo!("unhandled CMD type"),
+            };
+            self.prompt = "".to_string();
         }
     }
 }

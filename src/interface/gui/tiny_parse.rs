@@ -1,17 +1,18 @@
-use std::{ffi::OsStr, path::Path};
+use std::ffi::OsStr;
 
 use nom::{
     branch::*,
-    bytes::complete::{tag, take_while},
-    character::complete::{
-        alpha1, alphanumeric1, anychar, multispace0, multispace1, not_line_ending, one_of, usize,
+    bytes::complete::tag,
+    character::{
+        complete::{alphanumeric1, multispace0, usize},
+        streaming::space1,
     },
-    combinator::{rest, success, verify},
-    error::FromExternalError,
-    multi::{separated_list0, separated_list1},
-    sequence::{delimited, pair, preceded, terminated},
+    combinator::{rest, verify},
+    sequence::{pair, preceded},
     IResult, Parser,
 };
+
+#[derive(Debug)]
 pub enum CMD {
     // Graph manipulaiton
     Allocate { name: String },
@@ -39,6 +40,8 @@ pub enum CMD {
 pub fn parse_cmd(cmd_txt: &str) -> IResult<&str, CMD> {
     alt((
         parse_alloc,
+        parse_input,
+        parse_output,
         parse_not,
         parse_and,
         parse_or,
@@ -70,15 +73,45 @@ fn parse_alloc(i: &str) -> IResult<&str, CMD> {
 }
 
 fn parse_input(i: &str) -> IResult<&str, CMD> {
-    todo!()
+    // replace usize with something parsing a usize from a binary sequence in order to make this alot more user friendly.
+    // i'm just using a raw usize right now since it's less effort
+    match preceded(
+        pair(multispace0, tag("input")),
+        pair(preceded(space1, name), preceded(space1, usize)),
+    )
+    .parse(i)
+    {
+        Ok((remainder, (name, pattern))) => Ok((
+            remainder,
+            CMD::DefineInput {
+                name: name.to_string(),
+                pattern,
+            },
+        )),
+        Err(err) => IResult::Err(err),
+    }
 }
 
 fn parse_output(i: &str) -> IResult<&str, CMD> {
-    todo!()
+    match preceded(
+        pair(multispace0, tag("output")),
+        pair(preceded(space1, name), preceded(space1, usize)),
+    )
+    .parse(i)
+    {
+        Ok((remainder, (name, val))) => Ok((
+            remainder,
+            CMD::DefineOutput {
+                name: name.to_string(),
+                val,
+            },
+        )),
+        Err(err) => IResult::Err(err),
+    }
 }
 
 fn parse_not(i: &str) -> IResult<&str, CMD> {
-    match preceded(pair(multispace0, tag("not")), preceded(multispace1, usize)).parse(i) {
+    match preceded(pair(multispace0, tag("not")), preceded(space1, usize)).parse(i) {
         Ok((remainder, val)) => Ok((remainder, CMD::DefineNot { val })),
         Err(err) => IResult::Err(err),
     }
@@ -87,7 +120,7 @@ fn parse_not(i: &str) -> IResult<&str, CMD> {
 fn parse_and(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("and")),
-        pair(preceded(multispace1, usize), preceded(multispace1, usize)),
+        pair(preceded(space1, usize), preceded(space1, usize)),
     )
     .parse(i)
     {
@@ -99,7 +132,7 @@ fn parse_and(i: &str) -> IResult<&str, CMD> {
 fn parse_or(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("or")),
-        pair(preceded(multispace1, usize), preceded(multispace1, usize)),
+        pair(preceded(space1, usize), preceded(space1, usize)),
     )
     .parse(i)
     {
@@ -111,7 +144,7 @@ fn parse_or(i: &str) -> IResult<&str, CMD> {
 fn parse_nand(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("nand")),
-        pair(preceded(multispace1, usize), preceded(multispace1, usize)),
+        pair(preceded(space1, usize), preceded(space1, usize)),
     )
     .parse(i)
     {
@@ -123,7 +156,7 @@ fn parse_nand(i: &str) -> IResult<&str, CMD> {
 fn parse_nor(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("nor")),
-        pair(preceded(multispace1, usize), preceded(multispace1, usize)),
+        pair(preceded(space1, usize), preceded(space1, usize)),
     )
     .parse(i)
     {
@@ -135,7 +168,7 @@ fn parse_nor(i: &str) -> IResult<&str, CMD> {
 fn parse_xor(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("xor")),
-        pair(preceded(multispace1, usize), preceded(multispace1, usize)),
+        pair(preceded(space1, usize), preceded(space1, usize)),
     )
     .parse(i)
     {
@@ -147,7 +180,7 @@ fn parse_xor(i: &str) -> IResult<&str, CMD> {
 fn parse_xnor(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("xnor")),
-        pair(preceded(multispace1, usize), preceded(multispace1, usize)),
+        pair(preceded(space1, usize), preceded(space1, usize)),
     )
     .parse(i)
     {
@@ -160,7 +193,7 @@ fn parse_save(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("save")),
         preceded(
-            multispace1,
+            space1,
             verify(rest, |f: &str| {
                 std::path::Path::new(f).extension() == Some(OsStr::new("rz"))
                     && std::path::Path::new(f).is_absolute()
@@ -183,7 +216,7 @@ fn parse_load(i: &str) -> IResult<&str, CMD> {
     match preceded(
         pair(multispace0, tag("load")),
         preceded(
-            multispace1,
+            space1,
             verify(rest, |f: &str| {
                 std::path::Path::new(f).extension() == Some(OsStr::new("rz"))
                     && std::path::Path::new(f).is_absolute()
@@ -233,12 +266,7 @@ fn parse_test(i: &str) -> IResult<&str, CMD> {
 /// a series of alpha characters delimited by whitespace
 /// may be an empty string
 fn name(i: &str) -> IResult<&str, &str> {
-    match nom::combinator::opt(preceded(
-        not_line_ending.and_then(multispace1),
-        alphanumeric1,
-    ))
-    .parse(i)
-    {
+    match nom::combinator::opt(preceded(space1, alphanumeric1)).parse(i) {
         Ok((remainder, val)) => Ok((remainder, val.unwrap_or_else(|| ""))),
         Err(err) => Err(err),
     }

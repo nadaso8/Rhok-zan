@@ -5,7 +5,7 @@ pub mod vizualizer;
 use std::io::{Read, Write};
 
 use crate::sim::*;
-use circuit::operation::SignalID;
+use circuit::{operation::SignalID, signal::Signal};
 use eframe::egui::{self, lerp};
 use nom::Parser;
 use tiny_parse::*;
@@ -254,6 +254,7 @@ impl GUI {
 
     /// handles a series of commands related to graph construction warning the user if any invalid command types are found
     fn compile_src(&mut self) {
+        self.module_desc = crate::sim::circuit::builder::Module::new(); // clear existing module before compilation.
         let err_empty_stack = "Empty Stack: Allocate a location?"; // msg when user tries to pop from an empty stack
 
         let cmds =
@@ -272,6 +273,35 @@ impl GUI {
                     let handle = self.module_desc.rz_alloc();
                     self.module_stack.push((name, handle));
                     self.prompt = "".to_string();
+                }
+                CMD::DefineInput { name, pattern } => {
+                    let expr = |id, tick| -> Signal {
+                        // need to decide on how I visualize output from the simulation first
+                        todo!()
+                    };
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) = self.module_desc.mk_input(handle, expr) {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
+                }
+                CMD::DefineOutput { name, val } => {
+                    let expr = |id, tick, signal| {
+                        // need to decide on how I visualize output from the simulation first
+                        todo!()
+                    };
+
+                    if let Some((_name, handle)) = self.module_stack.pop() {
+                        if let Result::Err(err) =
+                            self.module_desc.mk_output(handle, SignalID(val), expr)
+                        {
+                            self.warnings.push((err, 1.0));
+                        }
+                    } else {
+                        self.warnings.push((err_empty_stack.to_string(), 1.0));
+                    }
                 }
                 CMD::DefineNot { val } => {
                     if let Some((_name, handle)) = self.module_stack.pop() {

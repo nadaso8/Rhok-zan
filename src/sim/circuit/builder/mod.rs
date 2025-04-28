@@ -3,7 +3,6 @@
 // eventually this needs a full re-implementation.
 
 use crate::sim::circuit::{operation::*, signal::*};
-use petgraph::{prelude::StableDiGraph, stable_graph::NodeIndex};
 use std::{sync::Arc, u128, usize};
 
 #[derive(Debug)]

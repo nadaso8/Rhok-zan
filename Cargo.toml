@@ -10,6 +10,7 @@ edition = "2021"
 
 [dependencies]
 eframe = "0.30.0"
-nom = "8.0.0"
-petgraph = "0.6"
+egui_graphs = "0.25.0"
+petgraph = "0.8.1"
 rayon = "1.8.1"
+sv-parser = "0.13.3"

@@ -1,4 +1,4 @@
-use interface::gui::gui_main;
+use interface::gui_main;
 
 mod interface;
 mod sim;

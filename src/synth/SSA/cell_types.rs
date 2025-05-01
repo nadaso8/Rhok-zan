@@ -1,29 +1,10 @@
 use std::rc::Rc;
 
-use super::{CellType, Module};
+use super::{Cell, Module};
 
-struct ModuleInstance {
-    module: Rc<Module>,
-}
+struct ModuleInstance {}
 
 struct AndGate {}
-impl CellType for AndGate {
-    fn ports(&self) -> Vec<super::Port> {
-        todo!()
-    }
-
-    fn lower(&self) -> Result<Vec<super::Cell>, super::LowerError> {
-        todo!()
-    }
-
-    fn is_boundary(&self) -> Option<super::PortHandle> {
-        todo!()
-    }
-
-    fn is_primitive(&self) -> Option<crate::sim::circuit::operation::Operation> {
-        todo!()
-    }
-}
 
 struct NandGate {}
 

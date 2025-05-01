@@ -1,101 +1,95 @@
 mod cell_types;
 
-use crate::sim::circuit;
-use std::rc::Rc;
-
 struct Netlist {
-    modules: Vec<Rc<Module>>,
+    modules: Vec<Module>,
 }
 
+impl Netlist {
+    fn flatten(&self, module_id: usize) -> Module {
+        todo!()
+    }
+}
 struct Module {
-    portlist_desc: Vec<Port>,
-    layout_desc: Vec<Cell>,
+    name: Box<str>,
+    portlist: Vec<Port>,
+    wires: Vec<Wire>,
+    cells: Vec<Box<dyn Cell>>,
 }
 
-struct Cell {
-    ports: Vec<Port>,
-    pub cell_type: Box<dyn CellType>,
-}
-
-impl Cell {
-    fn new(cell_type: Box<dyn CellType>) -> Self {
+impl Module {
+    fn new(name: &str) -> Self {
         Self {
-            ports: cell_type.ports(),
-            cell_type: cell_type,
+            name: name.into(),
+            portlist: Vec::new(),
+            wires: Vec::new(),
+            cells: Vec::new(),
         }
-    }
-
-    fn link_port(
-        &mut self,
-        local: PortHandle,
-        remote: (CellHandle, PortHandle),
-    ) -> Result<(), LinkError> {
-        let port_to_link = match self.ports.get_mut(local.0) {
-            Some(val) => val,
-            None => return Result::Err(LinkError::PortDoesNotExist),
-        };
-
-        match port_to_link {
-            Port::Input(val) => {
-                if let None = val {
-                    *val = Some(remote);
-                } else {
-                    return Result::Err(LinkError::InputAlreadyDriven);
-                }
-            }
-
-            Port::Output(val) => val.push(remote),
-        };
-
-        return Result::Ok(());
-    }
-
-    fn clear_port(&mut self, port_handle: PortHandle) {
-        match self.ports.get_mut(port_handle.0) {
-            Some(Port::Input(val)) => {
-                *val = Option::None;
-            }
-            Some(Port::Output(val)) => {
-                *val = Vec::new();
-            }
-            None => (),
-        }
-    }
-
-    fn get_ports(&self) -> &Vec<Port> {
-        &self.ports
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+impl Cell for Module {
+    fn clone_as_box(&self) -> Box<dyn Cell> {
+        let mut clone_cells = Vec::with_capacity(self.cells.len());
+
+        for cell in &self.cells {
+            clone_cells.push(cell.clone_as_box());
+        }
+
+        Box::new(Module {
+            name: self.name.clone(),
+            portlist: self.portlist.clone(),
+            wires: self.wires.clone(),
+            cells: clone_cells,
+        })
+    }
+
+    fn lower(&self) -> Result<&Module, LowerError> {
+        Ok(&self)
+        // in most cases conversion from Self to Module likely via a constant reference
+        // design would happen here. However since Self is already module we just need
+        // to provide a reference to self.
+    }
+
+    fn ports(&self) -> &Vec<Port> {
+        &self.ports()
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 struct CellHandle(usize);
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 struct PortHandle(usize);
 
 #[derive(Clone, Debug)]
-enum Port {
-    Input(Option<(CellHandle, PortHandle)>),
-    Output(Vec<(CellHandle, PortHandle)>),
+struct Port {
+    name: String,
+    port_type: PortType,
+    local_address: (CellHandle, PortHandle),
 }
 
-trait CellType {
-    /// returns an empty/unlinked description of the CellType object's portlist
-    fn ports(&self) -> Vec<Port>;
-
-    /// returns a lowered description of the CellType object
-    fn lower(&self) -> Result<Vec<Cell>, LowerError>;
-
-    /// returns whether or not the CellType is a boundary of the child module
-    /// if it is a boundary it provides the port which it is linked to in the parent.
-    fn is_boundary(&self) -> Option<PortHandle>;
-
-    /// returns whether or not this CellType is a primitive and what gate level operation
-    /// it represents.  
-    fn is_primitive(&self) -> Option<circuit::operation::Operation>;
+#[derive(Clone, Copy, Debug)]
+enum PortType {
+    Input,
+    Output,
 }
 
-enum LinkError {
-    PortDoesNotExist,
-    InputAlreadyDriven,
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+struct Wire {
+    source: (CellHandle, PortHandle),
+    drain: (CellHandle, PortHandle),
 }
-enum LowerError {}
+
+trait Cell {
+    /// returns a box containing a deep copy of self
+    fn clone_as_box(&self) -> Box<dyn Cell>;
+
+    /// returns a lowered description of the Cell
+    fn lower(&self) -> Result<&Module, LowerError>;
+
+    /// returns a description of the Portlist to a Cell
+    fn ports(&self) -> &Vec<Port>;
+}
+
+enum LowerError {
+    IsPrimitive,
+}

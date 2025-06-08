@@ -27,7 +27,20 @@ impl Circuit {
                 // I/O port handling
                 Operation::Input(input) => {
                     if self.tick_counter % self.ticks_per_input as u128 == 0 {
-                        let pending_input = input.handler.as_ref()(index, self.tick_counter);
+                        let pending_input = input.handler.as_ref()(
+                            index,
+                            /*
+                            The division here is needed in order to split the Input tick space and Simulation tick space.
+                            If this was not present input closures would have to be aware of the depth of the circuit
+                            calling them or risk samping issues. The circuit may only call the input closure every TPI
+                            ticks so that uncontrolled singals are allowed time to propagate through the circuit.
+
+                            For example if an input changed between true and false with a period of TPI the value would
+                            appear constant true to the circuit as the closure woulldn't be called when the value was
+                            false.
+                            */
+                            self.tick_counter / self.ticks_per_input as u128,
+                        );
 
                         // This match statment exists to inject an uncontrolled vlaue on the leading edge
                         // of a gate transition. It's necesarry to do this as a test for uncontrolled loops
@@ -126,13 +139,13 @@ mod tests {
         // build description
         let description = Box::new([
             Operation::Input(InputHandler {
-                handler: Arc::new(|index, tick| match (tick / (TPI as u128 * 2)) % (2) {
+                handler: Arc::new(|index, tick| match (tick / 2) % (2) {
                     0 => Signal::False,
                     _ => Signal::True,
                 }),
             }),
             Operation::Input(InputHandler {
-                handler: Arc::new(|index, tick| match (tick / (TPI as u128 * 4)) % (2) {
+                handler: Arc::new(|index, tick| match (tick / 4) % (2) {
                     0 => Signal::False,
                     _ => Signal::True,
                 }),

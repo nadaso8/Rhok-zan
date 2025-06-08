@@ -1,3 +1,6 @@
+use crate::sim::circuit::{self, operation::SignalID};
+use std::collections::HashMap;
+
 mod cell_types;
 
 struct Netlist {
@@ -5,14 +8,92 @@ struct Netlist {
 }
 
 impl Netlist {
-    fn flatten(&self, module_id: usize) -> Module {
-        todo!()
+    pub fn as_circuit(
+        &self,
+        module_handle: ModuleHandle,
+    ) -> Result<circuit::Circuit, NetlistLowerError> {
+        let mut gld = circuit::builder::Module::new();
+        let top = self.modules.get(module_handle.0).unwrap();
+
+        /*
+        At present tpi is static but would ideally be dynamically inferred from the depth of the gld
+        This is mostly because it's not pressing to worry about that at present and assuming a depth of 1k
+        is plenty sufficient for basic testing.
+        */
+        let tpi = 1000;
+
+        Result::Ok(circuit::Circuit::new(gld.into_desc(), tpi))
+    }
+
+    /// A recursive function which builds an instance of the provided module in
+    /// gate level description (gld) returning by reference. note that *all*
+    /// ports must be pre-allocated by the caller of the function.
+    fn lower(
+        &self,
+        gld: &mut circuit::builder::Module,
+        module: &Module,
+        ports: &HashMap<PortHandle, SignalID>,
+    ) -> Result<(), NetlistLowerError> {
+        // we cannot instantiate a module which is empty
+        if module.cells.is_empty() {
+            return Err(NetlistLowerError::EmptyModule);
+        };
+
+        let name_space: HashMap<Address, SignalID> = HashMap::new();
+        for (cell_idx, cell) in module.cells.as_slice().into_iter().enumerate() {
+            let cell_handle = CellHandle(cell_idx);
+
+            match cell.contents() {
+                CellContents::BuiltinModule(module) => {
+                    // recurse into module
+                    todo!()
+                }
+                CellContents::UserModule(module_handle) => {
+                    // get definition of use
+                    let user_defined_module = match self.modules.get(module_handle.0) {
+                        Some(T) => T,
+                        None => {
+                            return Err(NetlistLowerError::ModuleHandleDNE);
+                        }
+                    };
+
+                    // recurse into user defined module
+                    todo!()
+                }
+                CellContents::Primitive(contents) => {
+                    let interface = cell.interface();
+                    let mut port_signal_ids = Vec::with_capacity(interface.len());
+
+                    for (port_idx, port) in interface.into_iter().enumerate() {
+                        let port_handle = PortHandle(port_idx);
+                        match port.port_type {
+                            PortType::Input => {
+                                // fetch source address
+                                let source_address = module.wires.get(&Drain(current_adress));
+                            }
+                            PortType::Output => {
+                                // create drain address
+                            }
+                        }
+
+                        // fetch signal id of address or allocate a new one
+                        let signal_id = match name_space.get(&Address(cell_handle, port_handle)) {
+                            Some(T) => T,
+                            None => &gld.rz_alloc(),
+                        };
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
+
 struct Module {
     name: Box<str>,
     portlist: Vec<Port>,
-    wires: Vec<Wire>,
+    wires: HashMap<Drain, Source>,
     cells: Vec<Box<dyn Cell>>,
 }
 
@@ -21,50 +102,42 @@ impl Module {
         Self {
             name: name.into(),
             portlist: Vec::new(),
-            wires: Vec::new(),
+            wires: HashMap::new(),
             cells: Vec::new(),
         }
     }
 }
 
-impl Cell for Module {
-    fn clone_as_box(&self) -> Box<dyn Cell> {
-        let mut clone_cells = Vec::with_capacity(self.cells.len());
+trait Cell {
+    /// returns a box containing a deep copy of self
+    fn clone_as_box(&self) -> Box<dyn Cell>;
 
-        for cell in &self.cells {
-            clone_cells.push(cell.clone_as_box());
-        }
+    /// returns a lowered description of the Cell
+    fn contents(&self) -> CellContents;
 
-        Box::new(Module {
-            name: self.name.clone(),
-            portlist: self.portlist.clone(),
-            wires: self.wires.clone(),
-            cells: clone_cells,
-        })
-    }
-
-    fn lower(&self) -> Result<&Module, LowerError> {
-        Ok(&self)
-        // in most cases conversion from Self to Module likely via a constant reference
-        // design would happen here. However since Self is already module we just need
-        // to provide a reference to self.
-    }
-
-    fn ports(&self) -> &Vec<Port> {
-        &self.ports()
-    }
+    /// returns a description of the cell interface
+    fn interface(&self) -> &[Port];
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+struct ModuleHandle(usize);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 struct CellHandle(usize);
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 struct PortHandle(usize);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+struct Address(CellHandle, PortHandle);
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+struct Source(Address);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+struct Drain(Address);
 
 #[derive(Clone, Debug)]
 struct Port {
     name: String,
     port_type: PortType,
-    local_address: (CellHandle, PortHandle),
+    local_location: Address,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -73,23 +146,33 @@ enum PortType {
     Output,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-struct Wire {
-    source: (CellHandle, PortHandle),
-    drain: (CellHandle, PortHandle),
+enum CellContents<'a> {
+    Primitive(PrimitiveType),
+    UserModule(ModuleHandle),
+    BuiltinModule(&'a Module),
 }
 
-trait Cell {
-    /// returns a box containing a deep copy of self
-    fn clone_as_box(&self) -> Box<dyn Cell>;
-
-    /// returns a lowered description of the Cell
-    fn lower(&self) -> Result<&Module, LowerError>;
-
-    /// returns a description of the Portlist to a Cell
-    fn ports(&self) -> &Vec<Port>;
+enum PrimitiveType {
+    Not,
+    And,
+    Nand,
+    Or,
+    Nor,
+    Xor,
+    Xnor,
+    Input(
+        circuit::operation::InputHandler<
+            dyn Fn(usize, u128) -> circuit::signal::Signal + Sync + Send,
+        >,
+    ),
+    Output(
+        circuit::operation::OutputHandler<
+            dyn Fn(usize, u128, circuit::signal::Signal) + Sync + Send,
+        >,
+    ),
 }
 
-enum LowerError {
-    IsPrimitive,
+enum NetlistLowerError {
+    EmptyModule,
+    ModuleHandleDNE,
 }

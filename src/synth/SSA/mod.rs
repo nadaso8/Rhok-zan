@@ -66,10 +66,29 @@ impl Netlist {
 
                     for (port_idx, port) in interface.into_iter().enumerate() {
                         let port_handle = PortHandle(port_idx);
+                        let current_adress = Address(cell_handle, port_handle);
                         match port.port_type {
                             PortType::Input => {
                                 // fetch source address
+                                // may be none representing a high impredance input
                                 let source_address = module.wires.get(&Drain(current_adress));
+
+                                match source_address {
+                                    Some(T) => {
+                                        // check namespace for prior allocation of source address and allocate it if one does not exist
+                                        let source_signalID = match name_space.get(source_address.0)
+                                        {
+                                            Some(T) => T,
+                                            None => {
+                                                todo!()
+                                            }
+                                        };
+                                    }
+                                    None => {
+                                        // allocate a new signal and leave it unassigned to represent the high
+                                        // impedance input. push that sighalID to current port without adding to namespace
+                                    }
+                                }
                             }
                             PortType::Output => {
                                 // create drain address

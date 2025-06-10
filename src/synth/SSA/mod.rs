@@ -39,7 +39,7 @@ impl Netlist {
             return Err(NetlistLowerError::EmptyModule);
         };
 
-        let name_space: HashMap<Address, SignalID> = HashMap::new();
+        let mut name_space: HashMap<Address, SignalID> = HashMap::new();
         for (cell_idx, cell) in module.cells.as_slice().into_iter().enumerate() {
             let cell_handle = CellHandle(cell_idx);
 
@@ -71,27 +71,31 @@ impl Netlist {
                             PortType::Input => {
                                 // fetch source address
                                 // may be none representing a high impredance input
-                                let source_address = module.wires.get(&Drain(current_adress));
-
-                                match source_address {
-                                    Some(T) => {
+                                match module.wires.get(&Drain(current_adress)) {
+                                    Some(source_address) => {
                                         // check namespace for prior allocation of source address and allocate it if one does not exist
-                                        let source_signalID = match name_space.get(source_address.0)
-                                        {
-                                            Some(T) => T,
+                                        let signal_id = match name_space.get(&source_address.0) {
+                                            Some(T) => T.to_owned(),
                                             None => {
-                                                todo!()
+                                                let T = gld.rz_alloc();
+                                                name_space.insert(source_address.0, T);
+                                                T
                                             }
                                         };
+                                        port_signal_ids.push(signal_id);
                                     }
                                     None => {
-                                        // allocate a new signal and leave it unassigned to represent the high
+                                        // allocate a new signal and leave it unassigned/named to represent the high
                                         // impedance input. push that sighalID to current port without adding to namespace
+                                        port_signal_ids.push(gld.rz_alloc());
                                     }
                                 }
                             }
                             PortType::Output => {
-                                // create drain address
+                                let signal_id = match name_space.get(&current_adress) {
+                                    Some(signal_id) => {}
+                                    None => {}
+                                };
                             }
                         }
 

@@ -32,79 +32,36 @@ impl Netlist {
         &self,
         gld: &mut circuit::builder::Module,
         module: &Module,
-        ports: &HashMap<PortHandle, SignalID>,
+        port_allocations: Vec<SignalID>,
     ) -> Result<(), NetlistLowerError> {
-        // we cannot instantiate a module which is empty
+        // we cannot instantiate a module which is empty.
         if module.cells.is_empty() {
             return Err(NetlistLowerError::EmptyModule);
         };
 
+        // Setup namespace to keep track of where has been allocated.
         let mut name_space: HashMap<Address, SignalID> = HashMap::new();
+        
+        // Ensure all allocations from parent module are added to namespace.
+        todo!()
+
+
         for (cell_idx, cell) in module.cells.as_slice().into_iter().enumerate() {
             let cell_handle = CellHandle(cell_idx);
 
+            // handle
             match cell.contents() {
                 CellContents::BuiltinModule(module) => {
-                    // recurse into module
                     todo!()
                 }
                 CellContents::UserModule(module_handle) => {
-                    // get definition of use
-                    let user_defined_module = match self.modules.get(module_handle.0) {
-                        Some(T) => T,
-                        None => {
-                            return Err(NetlistLowerError::ModuleHandleDNE);
-                        }
-                    };
-
-                    // recurse into user defined module
                     todo!()
                 }
                 CellContents::Primitive(contents) => {
-                    let interface = cell.interface();
-                    let mut port_signal_ids = Vec::with_capacity(interface.len());
-
-                    for (port_idx, port) in interface.into_iter().enumerate() {
-                        let port_handle = PortHandle(port_idx);
-                        let current_adress = Address(cell_handle, port_handle);
-                        match port.port_type {
-                            PortType::Input => {
-                                // fetch source address
-                                // may be none representing a high impredance input
-                                match module.wires.get(&Drain(current_adress)) {
-                                    Some(source_address) => {
-                                        // check namespace for prior allocation of source address and allocate it if one does not exist
-                                        let signal_id = match name_space.get(&source_address.0) {
-                                            Some(T) => T.to_owned(),
-                                            None => {
-                                                let T = gld.rz_alloc();
-                                                name_space.insert(source_address.0, T);
-                                                T
-                                            }
-                                        };
-                                        port_signal_ids.push(signal_id);
-                                    }
-                                    None => {
-                                        // allocate a new signal and leave it unassigned/named to represent the high
-                                        // impedance input. push that sighalID to current port without adding to namespace
-                                        port_signal_ids.push(gld.rz_alloc());
-                                    }
-                                }
-                            }
-                            PortType::Output => {
-                                let signal_id = match name_space.get(&current_adress) {
-                                    Some(signal_id) => {}
-                                    None => {}
-                                };
-                            }
-                        }
-
-                        // fetch signal id of address or allocate a new one
-                        let signal_id = match name_space.get(&Address(cell_handle, port_handle)) {
-                            Some(T) => T,
-                            None => &gld.rz_alloc(),
-                        };
-                    }
+                    todo!()
+                }
+                CellContents::ModuleBoundary(port_handle) => {
+                    todo!()
                 }
             }
         }
@@ -173,6 +130,7 @@ enum CellContents<'a> {
     Primitive(PrimitiveType),
     UserModule(ModuleHandle),
     BuiltinModule(&'a Module),
+    ModuleBoundary(PortHandle),
 }
 
 enum PrimitiveType {

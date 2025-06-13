@@ -41,10 +41,18 @@ impl Netlist {
 
         // Setup namespace to keep track of where has been allocated.
         let mut name_space: HashMap<Address, SignalID> = HashMap::new();
-        
-        // Ensure all allocations from parent module are added to namespace.
-        todo!()
 
+        // Ensure all allocations from parent module are added to namespace.
+        for (idx, sid) in port_allocations.iter().enumerate() {
+            let port = match module.portlist.get(idx) {
+                Some(T) => T,
+                None => {
+                    return Result::Err(NetlistLowerError::PortDNE);
+                }
+            };
+
+            name_space.insert(port.local_location, *sid);
+        }
 
         for (cell_idx, cell) in module.cells.as_slice().into_iter().enumerate() {
             let cell_handle = CellHandle(cell_idx);
@@ -156,4 +164,5 @@ enum PrimitiveType {
 enum NetlistLowerError {
     EmptyModule,
     ModuleHandleDNE,
+    PortDNE,
 }

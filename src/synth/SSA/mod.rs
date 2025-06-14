@@ -172,4 +172,5 @@ enum PrimitiveType {
 enum NetlistLowerError {
     EmptyModule,
     ModuleHandleDNE,
+    PortDNE,
 }

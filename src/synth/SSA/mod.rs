@@ -41,12 +41,18 @@ impl Netlist {
 
         // Setup namespace to keep track of where has been allocated.
         let mut name_space: HashMap<Address, SignalID> = HashMap::new();
-        
-        // Ensure all allocations from parent module are added to namespace.
-        todo!()
 
+        // intitialize namespace by ensuring all allocations from
+        // parent module are added to namespace.
+        for (port_idx, port_desc) in module.portlist.iter().enumerate() {
+            let alloc = port_allocations
+                .get(port_idx)
+                .expect("unallocated port passed in during lowering process");
 
-        for (cell_idx, cell) in module.cells.as_slice().into_iter().enumerate() {
+            name_space.insert(port_desc.local_location, *alloc);
+        }
+
+        for (cell_idx, cell) in module.cells.iter().enumerate() {
             let cell_handle = CellHandle(cell_idx);
 
             // handle
@@ -60,8 +66,18 @@ impl Netlist {
                 CellContents::Primitive(contents) => {
                     todo!()
                 }
-                CellContents::ModuleBoundary(port_handle) => {
-                    todo!()
+                CellContents::InputPlaceholder => {
+                    // literally do nothing for this branch do not allocate don't pass go don't collect
+                    // 200$.
+
+                    // This is a special case of cell (a hack lol) so that cells local to
+                    // the current module have something to link to. It should be given an allocation
+                    // passed in from the parent module.
+
+                    // There is no analogue for output ports because circuit representation used for simulation
+                    // is singally linked meaning each node is only aware of nodes which it depends on. So the
+                    // local adress which said output links to will simply be given an allocation from the parent
+                    // up front.
                 }
             }
         }
@@ -130,7 +146,7 @@ enum CellContents<'a> {
     Primitive(PrimitiveType),
     UserModule(ModuleHandle),
     BuiltinModule(&'a Module),
-    ModuleBoundary(PortHandle),
+    InputPlaceholder,
 }
 
 enum PrimitiveType {

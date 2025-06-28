@@ -20,12 +20,12 @@ impl Module {
     pub fn mk_input(
         &mut self,
         loc: SignalID,
-        expr: impl Fn(usize, u128) -> Signal + Sync + Send + 'static,
+        expr: Arc<dyn Fn(usize, u128) -> Signal + Sync + Send>,
     ) -> Result<(), String> {
         if let Some(op) = self.desc.get_mut(loc.0) {
             match op {
                 Option::None => {
-                    *op = Option::Some(Operation::Input(InputHandler::new(Arc::new(expr))));
+                    *op = Option::Some(Operation::Input(InputHandler::new(expr)));
                     Result::Ok(())
                 }
                 Option::Some(_) => Result::Err(
@@ -43,12 +43,12 @@ impl Module {
         &mut self,
         loc: SignalID,
         var: SignalID,
-        expr: impl Fn(usize, u128, Signal) + Sync + Send + 'static,
+        expr: Arc<dyn Fn(usize, u128, Signal) + Sync + Send>,
     ) -> Result<(), String> {
         if let Some(op) = self.desc.get_mut(loc.0) {
             match op {
                 Option::None => {
-                    *op = Option::Some(Operation::Output(var, OutputHandler::new(Arc::new(expr))));
+                    *op = Option::Some(Operation::Output(var, OutputHandler::new(expr)));
                     Result::Ok(())
                 }
                 Option::Some(_) => Result::Err(
@@ -228,16 +228,22 @@ mod tests {
 
         let (S, R) = (latch.rz_alloc(), latch.rz_alloc());
         latch
-            .mk_input(S, |_index, tick| match (tick / (TPI as u128 * 2)) % (2) {
-                0 => Signal::False,
-                _ => Signal::True,
-            })
+            .mk_input(
+                S,
+                Arc::new(|_index, tick| match (tick / (TPI as u128 * 2)) % (2) {
+                    0 => Signal::False,
+                    _ => Signal::True,
+                }),
+            )
             .unwrap();
         latch
-            .mk_input(R, |_index, tick| match (tick / (TPI as u128 * 4)) % (2) {
-                0 => Signal::False,
-                _ => Signal::True,
-            })
+            .mk_input(
+                R,
+                Arc::new(|_index, tick| match (tick / (TPI as u128 * 4)) % (2) {
+                    0 => Signal::False,
+                    _ => Signal::True,
+                }),
+            )
             .unwrap();
 
         let (Q, Q_not) = (latch.rz_alloc(), latch.rz_alloc());
@@ -246,22 +252,30 @@ mod tests {
 
         let outputs = (latch.rz_alloc(), latch.rz_alloc());
         latch
-            .mk_output(outputs.0, Q, |index, tick, signal| {
-                let should_print = tick % TPI as u128;
-                if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q {
-                    println!("Index: {} is {} on Tick: {}", index, signal, tick)
-                };
-                return;
-            })
+            .mk_output(
+                outputs.0,
+                Q,
+                Arc::new(|index, tick, signal| {
+                    let should_print = tick % TPI as u128;
+                    if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q {
+                        println!("Index: {} is {} on Tick: {}", index, signal, tick)
+                    };
+                    return;
+                }),
+            )
             .unwrap();
         latch
-            .mk_output(outputs.1, Q_not, |index, tick, signal| {
-                let should_print = tick % TPI as u128;
-                if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q_NOT {
-                    println!("Index: {} is {} on Tick: {}", index, signal, tick)
-                };
-                return;
-            })
+            .mk_output(
+                outputs.1,
+                Q_not,
+                Arc::new(|index, tick, signal| {
+                    let should_print = tick % TPI as u128;
+                    if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q_NOT {
+                        println!("Index: {} is {} on Tick: {}", index, signal, tick)
+                    };
+                    return;
+                }),
+            )
             .unwrap();
 
         let mut circuit = Circuit::new(latch.into_desc(), TPI);

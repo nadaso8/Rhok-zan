@@ -15,8 +15,12 @@ impl Cell for ModuleInstance {
         })
     }
 
-    fn lower(&self) -> Result<&Module, super::LowerError> {
-        Result::Err(super::LowerError::IsModule(self.module_handle))
+    fn contents(&self) -> super::CellContents {
+        todo!()
+    }
+
+    fn interface(&self) -> &[super::Port] {
+        todo!()
     }
 }
 

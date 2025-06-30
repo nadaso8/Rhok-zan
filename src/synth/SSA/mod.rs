@@ -1,5 +1,13 @@
+/*
+Beware all ye mortals who enter here I this file is born from the ravings of a madwoman
+long since lost to the abominiation of the elder gods which is recursively flattening
+a the farce of a netlist which was the graph structure designed by her own huberis.
+There is no god and no master in this domain. Simply the horrors and turmoil of handle
+translation.
+*/
+
 use crate::sim::circuit::{self, operation::SignalID};
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 mod cell_types;
 
@@ -14,6 +22,19 @@ impl Netlist {
     ) -> Result<circuit::Circuit, NetlistLowerError> {
         let mut gld = circuit::builder::Module::new();
         let top = self.modules.get(module_handle.0).unwrap();
+
+        let mut port_allocations = Vec::new();
+        for _idx in 0..top.portlist.len() {
+            /*
+            I might want to actually instantiate something here in the future,
+            but at the momment I'm just going to allocate and leave things as
+            high impedance.
+            */
+
+            port_allocations.push(gld.rz_alloc())
+        }
+
+        self.lower(&mut gld, top, port_allocations)?;
 
         /*
         At present tpi is static but would ideally be dynamically inferred from the depth of the gld
@@ -43,19 +64,20 @@ impl Netlist {
         let mut name_space: HashMap<Address, SignalID> = HashMap::new();
 
         // intitialize namespace by ensuring all allocations from
-        // parent module are added to namespace.
+        // parent module are added.
         for (port_idx, port_desc) in module.portlist.iter().enumerate() {
-            let alloc = port_allocations
-                .get(port_idx)
-                .expect("unallocated port passed in during lowering process");
-
+            let alloc = match port_allocations.get(port_idx) {
+                Some(t) => t,
+                None => {
+                    return Result::Err(NetlistLowerError::PortNotAllocated);
+                }
+            };
             name_space.insert(port_desc.local_location, *alloc);
         }
 
         for (cell_idx, cell) in module.cells.iter().enumerate() {
             let cell_handle = CellHandle(cell_idx);
 
-            // get or allocate signal_ids for each port of current cell
             let mut child_port_mapping = Vec::new();
             for (port_idx, port_desc) in cell.interface().iter().enumerate() {
                 let port_handle = PortHandle(port_idx);
@@ -64,7 +86,6 @@ impl Netlist {
                 let signal_id = match port_desc.port_type {
                     PortType::Input => {
                         // lookup source address or allocate and add it to namespace if needed
-
                         match module.wires.get(&Drain(current_address)) {
                             Option::Some(source_address) => match name_space.get(&source_address.0)
                             {
@@ -101,18 +122,33 @@ impl Netlist {
             // handle construction of cell contents
             match cell.contents() {
                 CellContents::BuiltinModule(module) => {
-                    todo!()
+                    self.lower(gld, module, child_port_mapping)?;
                 }
                 CellContents::UserModule(module_handle) => {
-                    todo!()
+                    // get user specified module from list of modules in self
+                    let module = match self.modules.get(module_handle.0) {
+                        Some(t) => t,
+                        None => {
+                            return Result::Err(NetlistLowerError::ModuleHandleDNE);
+                        }
+                    };
+
+                    // recurse into new module passing in the child_port_mapping generated
+                    // at current scope of
+                    self.lower(gld, module, child_port_mapping)?;
                 }
                 CellContents::Primitive(gate_type) => {
-                    // frfr we just gonna hard code this
+                    // Get all the port mappings primitives might use.
+                    // The port indexes for this are hardcoded, but since
+                    // I can't come up with a more sensible mappping i'm not
+                    // going to make this more generalized.
                     let loc = child_port_mapping.get(0);
                     let lhs = child_port_mapping.get(1);
                     let rhs = child_port_mapping.get(2);
 
-                    // I donot care anymore I will refactor this oneday maybe
+                    // This match statement just matches to the gate_type and calls
+                    // the appropriate function on gld to instantiate it. It's very
+                    // long and gross but not much happens.
                     match gate_type {
                         // unary
                         PrimitiveType::Not => {
@@ -120,13 +156,17 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                             );
@@ -138,19 +178,25 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                             );
@@ -160,19 +206,25 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                             );
@@ -182,19 +234,25 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                             );
@@ -204,19 +262,25 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                             );
@@ -226,19 +290,25 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                             );
@@ -248,19 +318,25 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                             );
@@ -271,7 +347,9 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 expr,
@@ -282,13 +360,17 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        return Result::Err(NetlistLowerError::PortNotAllocated);
+                                        return Result::Err(
+                                            NetlistLowerError::ChildPortNotAllocated,
+                                        );
                                     }
                                 },
                                 expr,
@@ -311,7 +393,7 @@ impl Netlist {
                     up front.
                     */
                 }
-            }
+            };
         }
 
         Ok(())
@@ -400,4 +482,22 @@ enum NetlistLowerError {
     ModuleHandleDNE,
     PortDNE,
     PortNotAllocated,
+    ChildPortNotAllocated,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    /// make a latch and test it for expected behavior
+    fn test_case_latch() {
+        todo!()
+    }
+
+    #[test]
+    /// make a full adder and test it for expected behavior
+    fn test_case_adder() {
+        todo!()
+    }
 }

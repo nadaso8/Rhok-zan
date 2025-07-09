@@ -6,11 +6,11 @@ use crate::sim::circuit::{operation::*, signal::*};
 use std::{sync::Arc, u128, usize};
 
 #[derive(Debug)]
-pub struct Module {
+pub struct GateLevelDescription {
     pub desc: Vec<Option<Operation>>,
 }
 
-impl Module {
+impl GateLevelDescription {
     /// Make an empty Module object
     pub fn new() -> Self {
         Self { desc: Vec::new() }
@@ -224,12 +224,12 @@ mod tests {
         const PRINT_Q: bool = true;
         const PRINT_Q_NOT: bool = false;
 
-        let mut latch = Module::new();
+        let mut latch = GateLevelDescription::new();
 
-        let (S, R) = (latch.rz_alloc(), latch.rz_alloc());
+        let (s, r) = (latch.rz_alloc(), latch.rz_alloc());
         latch
             .mk_input(
-                S,
+                s,
                 Arc::new(|_index, tick| match (tick / (TPI as u128 * 2)) % (2) {
                     0 => Signal::False,
                     _ => Signal::True,
@@ -238,7 +238,7 @@ mod tests {
             .unwrap();
         latch
             .mk_input(
-                R,
+                r,
                 Arc::new(|_index, tick| match (tick / (TPI as u128 * 4)) % (2) {
                     0 => Signal::False,
                     _ => Signal::True,
@@ -246,15 +246,15 @@ mod tests {
             )
             .unwrap();
 
-        let (Q, Q_not) = (latch.rz_alloc(), latch.rz_alloc());
-        latch.mk_nor(Q, R, Q_not).unwrap();
-        latch.mk_nor(Q_not, S, Q).unwrap();
+        let (q, q_not) = (latch.rz_alloc(), latch.rz_alloc());
+        latch.mk_nor(q, r, q_not).unwrap();
+        latch.mk_nor(q_not, s, q).unwrap();
 
         let outputs = (latch.rz_alloc(), latch.rz_alloc());
         latch
             .mk_output(
                 outputs.0,
-                Q,
+                q,
                 Arc::new(|index, tick, signal| {
                     let should_print = tick % TPI as u128;
                     if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q {
@@ -267,7 +267,7 @@ mod tests {
         latch
             .mk_output(
                 outputs.1,
-                Q_not,
+                q_not,
                 Arc::new(|index, tick, signal| {
                     let should_print = tick % TPI as u128;
                     if (should_print == 0 || ALWAYS_PRINT) && PRINT_Q_NOT {

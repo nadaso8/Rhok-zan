@@ -101,7 +101,7 @@ impl Circuit {
         assert_eq!(description_length, initial_swap.len());
 
         return Circuit {
-            description: description,
+            description,
             signals: initial_state.into_boxed_slice(),
             signals_swap: initial_swap.into_boxed_slice(),
             ticks_per_input: tpi,

@@ -1,7 +1,5 @@
 // This module is the basis for the Rhok'zan graphical user interface
 // code pretaining to command line execution can be found in main.
-
-use crate::sim::*;
 use eframe::egui;
 
 /// start gui
@@ -18,9 +16,7 @@ pub fn gui_main() -> Result<(), eframe::Error> {
 
 /// Stores the necesarry state for our UI interface
 #[derive(Debug)]
-struct GUI {
-    design_under_test: egui_graphs::Graph,
-}
+struct GUI {}
 
 enum WindowType {
     Schematic { module: usize },

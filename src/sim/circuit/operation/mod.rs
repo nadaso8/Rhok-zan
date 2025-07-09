@@ -46,14 +46,14 @@ impl Debug for Operation {
             "Type: {}",
             match self {
                 Self::Input(_) => format!("input",),
-                Self::Output(I, _) => format!("output Of: {}", I.0),
-                Self::Not(I) => format!("not Of: {}", I.0),
-                Self::And(I, J) => format!("and Of: {}, {}", I.0, J.0),
-                Self::Nand(I, J) => format!("nand Of: {}, {}", I.0, J.0),
-                Self::Or(I, J) => format!("or Of: {}, {}", I.0, J.0),
-                Self::Nor(I, J) => format!("nor Of: {}, {}", I.0, J.0),
-                Self::Xor(I, J) => format!("xor Of: {}, {}", I.0, J.0),
-                Self::Xnor(I, J) => format!("xnor Of: {}, {}", I.0, J.0),
+                Self::Output(i, _) => format!("output Of: {}", i.0),
+                Self::Not(i) => format!("not Of: {}", i.0),
+                Self::And(i, j) => format!("and Of: {}, {}", i.0, j.0),
+                Self::Nand(i, j) => format!("nand Of: {}, {}", i.0, j.0),
+                Self::Or(i, j) => format!("or Of: {}, {}", i.0, j.0),
+                Self::Nor(i, j) => format!("nor Of: {}, {}", i.0, j.0),
+                Self::Xor(i, j) => format!("xor Of: {}, {}", i.0, j.0),
+                Self::Xnor(i, j) => format!("xnor Of: {}, {}", i.0, j.0),
             }
         )
     }

@@ -2,7 +2,7 @@
 // it was adapted to use petraph and uses it kinda weirdly as a result
 // eventually this needs a full re-implementation.
 
-use crate::sim::circuit::{operation::*, signal::*};
+use crate::back_end::circuit::{operation::*, signal::*};
 use std::{sync::Arc, u128, usize};
 
 #[derive(Debug)]
@@ -215,7 +215,7 @@ impl GateLevelDescription {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sim::circuit::Circuit;
+    use crate::back_end::circuit::Circuit;
 
     #[test]
     fn test_case_latch() {

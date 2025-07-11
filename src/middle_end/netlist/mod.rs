@@ -6,10 +6,10 @@ There is no god and no master in this domain. Simply the horrors and turmoil of 
 translation.
 */
 
-use crate::sim::circuit::{self, operation::SignalID};
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+pub mod cell_types;
 
-mod cell_types;
+use crate::back_end::circuit::{self, operation::SignalID};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 struct Netlist {
     modules: Vec<Module>,
@@ -25,12 +25,6 @@ impl Netlist {
 
         let mut port_allocations = Vec::new();
         for _idx in 0..top.portlist.len() {
-            /*
-            I might want to actually instantiate something here in the future,
-            but at the momment I'm just going to allocate and leave things as
-            high impedance.
-            */
-
             port_allocations.push(gld.rz_alloc())
         }
 
@@ -120,7 +114,11 @@ impl Netlist {
                         // allocate and add current address to namespace if needed
                         match name_space.get(&current_address) {
                             Some(id) => *id,
-                            None => gld.rz_alloc(),
+                            None => {
+                                let id = gld.rz_alloc();
+                                name_space.insert(current_address, id);
+                                id
+                            }
                         }
                     }
                 };
@@ -460,7 +458,7 @@ impl Module {
     }
 }
 
-trait Cell: Debug {
+pub trait Cell: Debug {
     /// returns a box containing a deep copy of self
     fn clone_as_box(&self) -> Box<dyn Cell>;
 
@@ -472,45 +470,45 @@ trait Cell: Debug {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-struct ModuleHandle(usize);
+pub struct ModuleHandle(usize);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-struct CellHandle(usize);
+pub struct CellHandle(usize);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-struct PortHandle(usize);
+pub struct PortHandle(usize);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-struct Address(CellHandle, PortHandle);
+pub struct Address(CellHandle, PortHandle);
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-struct Source(Address);
+pub struct Source(Address);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-struct Drain(Address);
+pub struct Drain(Address);
 
 #[derive(Clone, Debug)]
-struct Port {
+pub struct Port {
     name: String,
     port_type: PortType,
     local_location: Address,
 }
 
 #[derive(Clone, Copy, Debug)]
-enum PortType {
+pub enum PortType {
     Input,
     Output,
 }
 
-enum CellContents {
+pub enum CellContents {
     Primitive(PrimitiveType),
     UserModule(ModuleHandle),
     BuiltinModule(Box<Module>),
     InputPlaceholder,
 }
 #[derive(Debug)]
-enum CellInterface {
+pub enum CellInterface {
     Builtin(Box<[Port]>),
     UserModule(ModuleHandle),
 }
 
-enum PrimitiveType {
+pub enum PrimitiveType {
     Not,
     And,
     Nand,
@@ -540,25 +538,25 @@ mod tests {
     #[test]
     /// make a latch and test it for expected behavior
     fn test_case_latch() {
-        use super::cell_types::*;
         let mut cells: Vec<Box<dyn Cell>> = Vec::new();
+        use cell_types::*;
 
-        // cell 00
+        // cell 00 S
+        cells.push(Box::new(Clock {
+            period: 4,
+            pulse_width: 2,
+        }));
+
+        // cell 01 R
         cells.push(Box::new(Clock {
             period: 8,
             pulse_width: 4,
         }));
 
-        // cell 01
-        cells.push(Box::new(Clock {
-            period: 16,
-            pulse_width: 8,
-        }));
-
         cells.push(Box::new(NorGate {})); // cell 02
         cells.push(Box::new(NorGate {})); // cell 03
-        cells.push(Box::new(PrintOutput {})); // cell 04
-        cells.push(Box::new(PrintOutput {})); // cell 05
+        cells.push(Box::new(PrintOutput {})); // cell 04 !Q
+        cells.push(Box::new(PrintOutput {})); // cell 05 Q
 
         let mut wires = HashMap::new();
         // connect nor gates to clock inputs
@@ -581,18 +579,19 @@ mod tests {
         );
         // connect outputs to nor gates.
         wires.insert(
-            Drain(Address(CellHandle(4), PortHandle(0))),
-            Source(Address(CellHandle(2), PortHandle(1))),
+            Drain(Address(CellHandle(4), PortHandle(1))),
+            Source(Address(CellHandle(2), PortHandle(0))),
         );
         wires.insert(
-            Drain(Address(CellHandle(5), PortHandle(0))),
-            Source(Address(CellHandle(3), PortHandle(1))),
+            Drain(Address(CellHandle(5), PortHandle(1))),
+            Source(Address(CellHandle(3), PortHandle(0))),
         );
 
         let netlist = Netlist {
             modules: vec![Module {
-                name: "Latch".to_string(), //
-                portlist: Vec::new(),      // No ports needed since this is top level module
+                name: "Latch".to_string(),
+                // No ports needed since this is top level module
+                portlist: Vec::new(),
                 wires,
                 cells,
             }],
@@ -600,18 +599,19 @@ mod tests {
 
         let mut circuit = netlist.as_circuit(ModuleHandle(0)).unwrap();
 
-        for idx in 0..=999 {
+        for idx in 0..1600 {
             circuit.tick()
         }
     }
 
     #[test]
+    /// instantiate a full adder and test that it instantiates correctly.
     fn test_case_full_adder() {
         todo!()
     }
 
     #[test]
-    /// make a full adder and test it for expected behavior
+    /// instantiate a 2 bit ripple adder and test that it instantiates correctly.
     fn test_case_ripple_adder() {
         todo!()
     }

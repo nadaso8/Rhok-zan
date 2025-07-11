@@ -1,8 +1,8 @@
-use interface::gui_main;
+mod back_end;
+mod front_end;
+mod middle_end;
 
-mod interface;
-mod sim;
-mod synth;
+use front_end::gui_main;
 
 /// for now we just no questions asked run the gui
 /// eventualy I will make a proper cli and possibly

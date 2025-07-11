@@ -11,8 +11,8 @@ impl Cell for ModuleInstance {
         Box::new(self.clone())
     }
 
-    fn contents(&self) -> super::CellContents {
-        super::CellContents::UserModule(self.module_handle)
+    fn contents(&self) -> CellContents {
+        CellContents::UserModule(self.module_handle)
     }
 
     fn interface(&self) -> CellInterface {
@@ -28,7 +28,7 @@ impl Cell for AndGate {
         Box::new(self.clone())
     }
 
-    fn contents(&self) -> super::CellContents {
+    fn contents(&self) -> CellContents {
         CellContents::Primitive(PrimitiveType::And)
     }
 

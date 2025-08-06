@@ -100,12 +100,11 @@ impl Netlist {
                                 }
                             },
                             None => {
-                                /*
-                                **** you allocates your unlinked address.
-                                In all seriousness this should log a warning for the user
-                                since if they want a high impedance link it should be
-                                added to their design explicitly not via fallback allocation
-                                */
+                                // **** you allocates your unlinked address.
+                                // In all seriousness this should log a warning for the user
+                                // since if they want a high impedance link it should be
+                                // added to their design explicitly not via fallback allocation
+
                                 gld.rz_alloc()
                             }
                         }
@@ -163,7 +162,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -172,7 +170,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -188,7 +185,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -197,7 +193,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -206,7 +201,6 @@ impl Netlist {
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -220,7 +214,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -229,7 +222,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -238,7 +230,6 @@ impl Netlist {
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -252,7 +243,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -261,7 +251,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -270,7 +259,6 @@ impl Netlist {
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -284,7 +272,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -293,7 +280,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -302,7 +288,6 @@ impl Netlist {
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -316,7 +301,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -325,7 +309,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -334,7 +317,6 @@ impl Netlist {
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -348,7 +330,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -357,7 +338,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -366,7 +346,6 @@ impl Netlist {
                                 match rhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -381,7 +360,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -396,7 +374,6 @@ impl Netlist {
                                 match loc {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -405,7 +382,6 @@ impl Netlist {
                                 match lhs {
                                     Some(sig) => *sig,
                                     None => {
-                                        panic!("child port missing");
                                         return Result::Err(
                                             NetlistLowerError::ChildPortNotAllocated,
                                         );
@@ -526,7 +502,6 @@ pub enum PrimitiveType {
 enum NetlistLowerError {
     EmptyModule,
     ModuleHandleDNE,
-    PortDNE,
     PortNotAllocated,
     ChildPortNotAllocated,
 }
@@ -555,8 +530,8 @@ mod tests {
 
         cells.push(Box::new(NorGate {})); // cell 02
         cells.push(Box::new(NorGate {})); // cell 03
-        cells.push(Box::new(PrintOutput {})); // cell 04 !Q
-        cells.push(Box::new(PrintOutput {})); // cell 05 Q
+        cells.push(Box::new(Print {})); // cell 04 !Q
+        cells.push(Box::new(Print {})); // cell 05 Q
 
         let mut wires = HashMap::new();
         // connect nor gates to clock inputs

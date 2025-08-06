@@ -1,5 +1,12 @@
+use circuit::signal;
+
 use super::*;
-use std::{u128, usize};
+use std::{
+    borrow::BorrowMut,
+    rc::{self, Rc},
+    sync::mpsc::{channel, Receiver, SyncSender},
+    u128, usize,
+};
 
 #[derive(Clone, Debug)]
 pub struct ModuleInstance {
@@ -288,8 +295,8 @@ impl Cell for Clock {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct PrintOutput {}
-impl Cell for PrintOutput {
+pub struct Print {}
+impl Cell for Print {
     fn clone_as_box(&self) -> Box<dyn Cell> {
         Box::new(*self)
     }
@@ -297,6 +304,88 @@ impl Cell for PrintOutput {
     fn contents(&self) -> CellContents {
         let expr = Arc::new(|index, tick, signal| {
             print!("index: {index} = {signal} at {tick} \n");
+        });
+        CellContents::Primitive(PrimitiveType::Output(expr))
+    }
+
+    fn interface(&self) -> CellInterface {
+        let interface = [
+            Port {
+                name: "state".to_string(),
+                port_type: PortType::Output,
+                local_location: Address(CellHandle(0), PortHandle(0)),
+            },
+            Port {
+                name: "watch".to_string(),
+                port_type: PortType::Input,
+                local_location: Address(CellHandle(0), PortHandle(1)),
+            },
+        ];
+        CellInterface::Builtin(Box::new(interface))
+    }
+}
+
+#[derive(Debug, Clone)]
+/// A cell which outputs the signal read on *watch* over an MPSC channel for processing/display on another thread.
+///
+/// Note that sender blocks on send which could cause the program to hang if the recieving thread ticks the simulation
+/// and an output tries to send data to a full buffer.
+///
+/// I may add a corresponding InputChannel Cell. However, the architecture on that is more difficult as it rases questions
+/// about when the channel is created and how it's passed to the thread generating values. At present just the OutputChannel
+/// Cell is sufficient for MVP/Demo.
+pub struct OutputChannel {
+    tx: SyncSender<(usize, u128, signal::Signal)>,
+}
+impl Cell for OutputChannel {
+    fn clone_as_box(&self) -> Box<dyn Cell> {
+        Box::new(self.clone())
+    }
+
+    fn contents(&self) -> CellContents {
+        let tx = self.tx.clone();
+        let expr = Arc::new(move |index, tick, signal| {
+            tx.send((index, tick, signal)).unwrap();
+        });
+        CellContents::Primitive(PrimitiveType::Output(expr))
+    }
+
+    fn interface(&self) -> CellInterface {
+        let interface = [
+            Port {
+                name: "state".to_string(),
+                port_type: PortType::Output,
+                local_location: Address(CellHandle(0), PortHandle(0)),
+            },
+            Port {
+                name: "watch".to_string(),
+                port_type: PortType::Input,
+                local_location: Address(CellHandle(0), PortHandle(1)),
+            },
+        ];
+        CellInterface::Builtin(Box::new(interface))
+    }
+}
+
+/// This cell is intended to be used for unit/integration tests
+/// it will panic if the current value is different to what it
+/// looks up from the expected waveform.
+#[derive(Clone, Debug)]
+pub struct Assert {
+    waveform: Vec<signal::Signal>,
+}
+
+impl Cell for Assert {
+    fn clone_as_box(&self) -> Box<dyn Cell> {
+        Box::new(self.clone())
+    }
+
+    fn contents(&self) -> CellContents {
+        let waveform = self.waveform.clone().into_boxed_slice();
+        let expr = Arc::new(move |index, tick, signal| {
+            let waveform_idx = (tick % (waveform.len() as u128)) as usize;
+            let expected = *waveform.get(waveform_idx).unwrap();
+            assert_eq!(signal, expected);
         });
         CellContents::Primitive(PrimitiveType::Output(expr))
     }

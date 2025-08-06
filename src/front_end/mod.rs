@@ -2,7 +2,9 @@
 // code pretaining to command line execution can be found in main.
 use eframe::egui;
 
-/// start gui
+/// Start the GUI
+///
+/// This function exists as an entrypoint to start the GUI
 pub fn gui_main() -> Result<(), eframe::Error> {
     let opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default(),
@@ -18,14 +20,9 @@ pub fn gui_main() -> Result<(), eframe::Error> {
 #[derive(Debug)]
 struct GUI {}
 
-enum WindowType {
-    Schematic { module: usize },
-    WaveformViewer {},
-}
-
 impl eframe::App for GUI {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        todo!()
+        eframe::egui::CentralPanel::default().show(ctx, |main_pannel| {});
     }
 }
 

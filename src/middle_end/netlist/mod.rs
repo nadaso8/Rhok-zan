@@ -508,30 +508,91 @@ enum NetlistLowerError {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::btree_map;
+
+    use circuit::signal::{self, Signal};
+
     use super::*;
 
     #[test]
     /// make a latch and test it for expected behavior
-    fn test_case_latch() {
+    fn integration_test_case_latch() {
         let mut cells: Vec<Box<dyn Cell>> = Vec::new();
         use cell_types::*;
 
         // cell 00 S
-        cells.push(Box::new(Clock {
-            period: 4,
-            pulse_width: 2,
+        cells.push(Box::new(Waveform {
+            setup_time: 0,
+            waveform: vec![
+                Signal::False, // (S:0, R:0)
+                Signal::False,
+                Signal::True, // (S:1, R:0)
+                Signal::True,
+                Signal::False, // (S:0, R:0)
+                Signal::False,
+                Signal::False, // (S:0, R:1)
+                Signal::False,
+                Signal::False, // (S:0, R:0)
+                Signal::False,
+                Signal::True, // (S:1, R:1)
+                Signal::True,
+            ],
         }));
 
         // cell 01 R
-        cells.push(Box::new(Clock {
-            period: 8,
-            pulse_width: 4,
+        cells.push(Box::new(Waveform {
+            setup_time: 0,
+            waveform: vec![
+                Signal::False, // (S:0, R:0)
+                Signal::False,
+                Signal::False, // (S:1, R:0)
+                Signal::False,
+                Signal::False, // (S:0, R:0)
+                Signal::False,
+                Signal::True, // (S:0, R:1)
+                Signal::True,
+                Signal::False, // (S:0, R:0)
+                Signal::False,
+                Signal::True, // (S:1, R:1)
+                Signal::True,
+            ],
         }));
 
         cells.push(Box::new(NorGate {})); // cell 02
         cells.push(Box::new(NorGate {})); // cell 03
-        cells.push(Box::new(Print {})); // cell 04 !Q
-        cells.push(Box::new(Print {})); // cell 05 Q
+        cells.push(Box::new(Print {})); // cell 04 Q
+        cells.push(Box::new(Print {})); // cell 05 Q!
+        let mut test_waveform = btree_map::BTreeMap::new();
+        test_waveform.insert(0, Signal::UncontrolledTrue);
+        test_waveform.insert(1, Signal::UncontrolledFalse);
+        test_waveform.insert(2, Signal::UncontrolledTrue);
+        test_waveform.insert(3, Signal::UncontrolledFalse);
+        test_waveform.insert(4, Signal::UncontrolledTrue);
+        test_waveform.insert(5, Signal::UncontrolledFalse);
+        test_waveform.insert(6, Signal::UncontrolledTrue);
+        test_waveform.insert(7, Signal::UncontrolledFalse);
+        test_waveform.insert(8, Signal::UncontrolledTrue);
+        test_waveform.insert(9, Signal::UncontrolledFalse);
+        test_waveform.insert(10, Signal::UncontrolledTrue);
+        test_waveform.insert(11, Signal::UncontrolledFalse);
+        test_waveform.insert(12, Signal::UncontrolledTrue);
+        test_waveform.insert(13, Signal::UncontrolledFalse);
+        test_waveform.insert(14, Signal::UncontrolledTrue);
+        test_waveform.insert(15, Signal::UncontrolledFalse);
+        test_waveform.insert(16, Signal::UncontrolledTrue);
+        test_waveform.insert(17, Signal::UncontrolledFalse);
+        test_waveform.insert(18, Signal::UncontrolledTrue);
+        test_waveform.insert(19, Signal::UncontrolledFalse);
+        test_waveform.insert(20, Signal::UncontrolledFalse);
+        test_waveform.insert(61, Signal::UncontrolledTrue);
+        test_waveform.insert(100, Signal::UncontrolledFalse);
+        test_waveform.insert(110, Signal::False);
+        cells.push(Box::new(DeltaAssert {
+            waveform: test_waveform,
+            period: 120,
+            setup_time: 22,
+            phase_offset: 2,
+        })); // cell 06 Assert watch
 
         let mut wires = HashMap::new();
         // connect nor gates to clock inputs
@@ -552,14 +613,20 @@ mod tests {
             Drain(Address(CellHandle(3), PortHandle(2))),
             Source(Address(CellHandle(2), PortHandle(0))),
         );
-        // connect outputs to nor gates.
+        // connect Print to Q
         wires.insert(
             Drain(Address(CellHandle(4), PortHandle(1))),
             Source(Address(CellHandle(2), PortHandle(0))),
         );
+        // connect Print to Q!
         wires.insert(
             Drain(Address(CellHandle(5), PortHandle(1))),
             Source(Address(CellHandle(3), PortHandle(0))),
+        );
+        // connect Testing Assert to Q
+        wires.insert(
+            Drain(Address(CellHandle(6), PortHandle(1))),
+            Source(Address(CellHandle(2), PortHandle(0))),
         );
 
         let netlist = Netlist {
@@ -574,7 +641,7 @@ mod tests {
 
         let mut circuit = netlist.as_circuit(ModuleHandle(0)).unwrap();
 
-        for idx in 0..1600 {
+        for idx in 0..512 {
             circuit.tick()
         }
     }

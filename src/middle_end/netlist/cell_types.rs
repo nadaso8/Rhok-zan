@@ -1,4 +1,4 @@
-use circuit::signal;
+use circuit::signal::{self, Signal};
 
 use super::*;
 use std::{
@@ -262,6 +262,47 @@ impl Cell for Inverter {
 }
 
 // primitive non gate components
+/// A cell which reproduces the series of signals in waveform after setup_time ticks have elapsed.
+#[derive(Clone, Debug)]
+pub struct Waveform {
+    pub setup_time: u128,
+    pub waveform: Vec<Signal>,
+}
+impl Cell for Waveform {
+    fn clone_as_box(&self) -> Box<dyn Cell> {
+        Box::new(self.clone())
+    }
+
+    fn interface(&self) -> CellInterface {
+        let interface = [Port {
+            name: "waveform".to_string(),
+            port_type: PortType::Output,
+            local_location: Address(CellHandle(0), PortHandle(0)),
+        }];
+        CellInterface::Builtin(Box::new(interface))
+    }
+
+    fn contents(&self) -> CellContents {
+        let setup_time = self.setup_time.clone();
+        let waveform = self.waveform.clone().into_boxed_slice();
+        let expr = Arc::new(move |_index, tick| {
+            if tick >= setup_time {
+                let waveform_idx = ((tick - setup_time) % (waveform.len() as u128)) as usize;
+                let signal = *waveform.get(waveform_idx).unwrap();
+                signal
+            } else {
+                Signal::Undefined
+            }
+        });
+        CellContents::Primitive(PrimitiveType::Input(expr))
+    }
+}
+
+/// A clock is a component which oscilates on a set period with a set pulse width.
+/// It begins a cycle as False, and sets to True after pulse width input ticks.
+/// This cycle is repeated every Period input ticks.
+///
+/// A clock starts on false since it makes construction of binary counters relatively simple
 #[derive(Clone, Copy, Debug)]
 pub struct Clock {
     pub period: usize,
@@ -285,7 +326,7 @@ impl Cell for Clock {
         let period = self.period;
         let pulse_width = self.pulse_width;
         let expr = Arc::new(move |_index, tick| -> circuit::signal::Signal {
-            match ((tick % period as u128) as usize) < pulse_width {
+            match ((tick % period as u128) as usize) > pulse_width {
                 true => circuit::signal::Signal::True,
                 false => circuit::signal::Signal::False,
             }
@@ -301,31 +342,18 @@ impl Cell for Print {
         Box::new(*self)
     }
 
+    fn interface(&self) -> CellInterface {
+        std_interface::output()
+    }
+
     fn contents(&self) -> CellContents {
         let expr = Arc::new(|index, tick, signal| {
             print!("index: {index} = {signal} at {tick} \n");
         });
         CellContents::Primitive(PrimitiveType::Output(expr))
     }
-
-    fn interface(&self) -> CellInterface {
-        let interface = [
-            Port {
-                name: "state".to_string(),
-                port_type: PortType::Output,
-                local_location: Address(CellHandle(0), PortHandle(0)),
-            },
-            Port {
-                name: "watch".to_string(),
-                port_type: PortType::Input,
-                local_location: Address(CellHandle(0), PortHandle(1)),
-            },
-        ];
-        CellInterface::Builtin(Box::new(interface))
-    }
 }
 
-#[derive(Debug, Clone)]
 /// A cell which outputs the signal read on *watch* over an MPSC channel for processing/display on another thread.
 ///
 /// Note that sender blocks on send which could cause the program to hang if the recieving thread ticks the simulation
@@ -334,12 +362,17 @@ impl Cell for Print {
 /// I may add a corresponding InputChannel Cell. However, the architecture on that is more difficult as it rases questions
 /// about when the channel is created and how it's passed to the thread generating values. At present just the OutputChannel
 /// Cell is sufficient for MVP/Demo.
+#[derive(Debug, Clone)]
 pub struct OutputChannel {
     tx: SyncSender<(usize, u128, signal::Signal)>,
 }
 impl Cell for OutputChannel {
     fn clone_as_box(&self) -> Box<dyn Cell> {
         Box::new(self.clone())
+    }
+
+    fn interface(&self) -> CellInterface {
+        std_interface::output()
     }
 
     fn contents(&self) -> CellContents {
@@ -349,22 +382,6 @@ impl Cell for OutputChannel {
         });
         CellContents::Primitive(PrimitiveType::Output(expr))
     }
-
-    fn interface(&self) -> CellInterface {
-        let interface = [
-            Port {
-                name: "state".to_string(),
-                port_type: PortType::Output,
-                local_location: Address(CellHandle(0), PortHandle(0)),
-            },
-            Port {
-                name: "watch".to_string(),
-                port_type: PortType::Input,
-                local_location: Address(CellHandle(0), PortHandle(1)),
-            },
-        ];
-        CellInterface::Builtin(Box::new(interface))
-    }
 }
 
 /// This cell is intended to be used for unit/integration tests
@@ -372,7 +389,8 @@ impl Cell for OutputChannel {
 /// looks up from the expected waveform.
 #[derive(Clone, Debug)]
 pub struct Assert {
-    waveform: Vec<signal::Signal>,
+    pub setup_time: u128,
+    pub waveform: Vec<signal::Signal>,
 }
 
 impl Cell for Assert {
@@ -380,17 +398,73 @@ impl Cell for Assert {
         Box::new(self.clone())
     }
 
+    fn interface(&self) -> CellInterface {
+        std_interface::output()
+    }
+
     fn contents(&self) -> CellContents {
+        let setup_time = self.setup_time.clone();
         let waveform = self.waveform.clone().into_boxed_slice();
         let expr = Arc::new(move |index, tick, signal| {
-            let waveform_idx = (tick % (waveform.len() as u128)) as usize;
-            let expected = *waveform.get(waveform_idx).unwrap();
-            assert_eq!(signal, expected);
+            if tick >= setup_time {
+                let waveform_idx = ((tick - setup_time) % (waveform.len() as u128)) as usize;
+                let expected = *waveform.get(waveform_idx).unwrap();
+                assert_eq!(signal, expected);
+            }
         });
         CellContents::Primitive(PrimitiveType::Output(expr))
     }
+}
+
+/// an assert node making use of a sparse waveform representation which only records edges in the waveform signal.
+/// waveform describes a series of edges in the expected signal.
+///
+// The implementation of this is non optimal but I'm throwing it together so I can get test coverage and not lose my mind writing tests that use a dense
+// waveform representation
+#[derive(Clone, Debug)]
+pub struct DeltaAssert {
+    pub waveform: std::collections::BTreeMap<u128, Signal>,
+    pub period: u128,
+    pub setup_time: u128,
+    pub phase_offset: u128,
+}
+
+impl Cell for DeltaAssert {
+    fn clone_as_box(&self) -> Box<dyn Cell> {
+        Box::new(self.clone())
+    }
 
     fn interface(&self) -> CellInterface {
+        std_interface::output()
+    }
+
+    fn contents(&self) -> CellContents {
+        let waveform = self.waveform.clone();
+        let period = self.period.clone();
+        let setup_time = self.setup_time.clone();
+        let phase_offset = self.phase_offset.clone();
+        let expr = Arc::new(move |_index, tick, signal| {
+            if tick >= setup_time {
+                let waveform_position = (tick - phase_offset) % period;
+                let mut previous_edge = (0, Signal::Undefined);
+                for edge in &waveform {
+                    if edge.0 <= &waveform_position {
+                        previous_edge = (*edge.0, *edge.1);
+                    }
+                }
+                let expected_signal = previous_edge.1;
+                assert_eq!(signal, expected_signal);
+            }
+        });
+        CellContents::Primitive(PrimitiveType::Output(expr))
+    }
+}
+
+mod std_interface {
+    use crate::middle_end::netlist::{
+        Address, CellHandle, CellInterface, Port, PortHandle, PortType,
+    };
+    pub fn output() -> CellInterface {
         let interface = [
             Port {
                 name: "state".to_string(),

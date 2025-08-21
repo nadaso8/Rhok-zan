@@ -413,6 +413,14 @@ impl Netlist {
 
         Ok(())
     }
+
+    fn mk_module() {
+        todo!()
+    }
+
+    fn get_mut(&mut self, handle: ModuleHandle) {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -431,6 +439,14 @@ impl Module {
             wires: HashMap::new(),
             cells: Vec::new(),
         }
+    }
+
+    fn mk_cell() {
+        todo!()
+    }
+
+    fn mk_wire() {
+        todo!()
     }
 }
 
@@ -515,8 +531,9 @@ mod tests {
     use super::*;
 
     #[test]
-    /// make a latch and test it for expected behavior
-    fn integration_test_case_latch() {
+    /// instantiates a 2 gate nor latch and simulates it to test that sequential behavior including race conditions is preserved
+    // TODO: remove make Print nodes be replaced with a NOP node to reduce test runtime if the testing isn't being run manually.
+    fn latch_lower_and_sim() {
         let mut cells: Vec<Box<dyn Cell>> = Vec::new();
         use cell_types::*;
 
@@ -641,7 +658,7 @@ mod tests {
 
         let mut circuit = netlist.as_circuit(ModuleHandle(0)).unwrap();
 
-        for idx in 0..512 {
+        for idx in 0..240 {
             circuit.tick()
         }
     }

@@ -9,16 +9,24 @@ translation.
 pub mod cell_types;
 
 use crate::back_end::circuit::{self, operation::SignalID};
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, iter, sync::Arc};
 
+#[derive(Debug)]
 struct Netlist {
     modules: Vec<Module>,
+}
+
+impl From<sv_parser::SyntaxTree> for Netlist {
+    fn from(value: sv_parser::SyntaxTree) -> Self {
+        todo!()
+    }
 }
 
 impl Netlist {
     pub fn as_circuit(
         &self,
         module_handle: ModuleHandle,
+        input_tick_ratio: usize,
     ) -> Result<circuit::Circuit, NetlistLowerError> {
         let mut gld = circuit::builder::GateLevelDescription::new();
         let top = self.modules.get(module_handle.0).unwrap();
@@ -30,14 +38,7 @@ impl Netlist {
 
         self.lower(&mut gld, top, port_allocations)?;
 
-        /*
-        At present tpi is static but would ideally be dynamically inferred from the depth of the gld
-        This is mostly because it's not pressing to worry about that at present and assuming a depth of 1k
-        is plenty sufficient for basic testing.
-        */
-        let tpi = 10;
-
-        Result::Ok(circuit::Circuit::new(gld.into_desc(), tpi))
+        Result::Ok(circuit::Circuit::new(gld.into_desc(), input_tick_ratio))
     }
 
     /// A recursive function which builds an instance of the provided module in
@@ -414,12 +415,16 @@ impl Netlist {
         Ok(())
     }
 
-    fn mk_module() {
-        todo!()
+    fn mk_module(&mut self, name: String) {
+        self.modules.push(Module::new(name));
     }
 
-    fn get_mut(&mut self, handle: ModuleHandle) {
-        todo!()
+    fn get_mut(&mut self, handle: ModuleHandle) -> Option<&mut Module> {
+        self.modules.get_mut(handle.0)
+    }
+
+    fn get(&self, handle: ModuleHandle) -> Option<&Module> {
+        self.modules.get(handle.0)
     }
 }
 
@@ -432,9 +437,9 @@ struct Module {
 }
 
 impl Module {
-    fn new(name: &str) -> Self {
+    fn new(name: String) -> Self {
         Self {
-            name: name.into(),
+            name: name,
             portlist: Vec::new(),
             wires: HashMap::new(),
             cells: Vec::new(),
@@ -536,6 +541,8 @@ mod tests {
     fn latch_lower_and_sim() {
         let mut cells: Vec<Box<dyn Cell>> = Vec::new();
         use cell_types::*;
+        const PRINT_Q: bool = false;
+        const PRINT_Q_NOT: bool = false;
 
         // cell 00 S
         cells.push(Box::new(Waveform {
@@ -555,7 +562,6 @@ mod tests {
                 Signal::True,
             ],
         }));
-
         // cell 01 R
         cells.push(Box::new(Waveform {
             setup_time: 0,
@@ -574,42 +580,37 @@ mod tests {
                 Signal::True,
             ],
         }));
+        // cell 02
+        cells.push(Box::new(NorGate {}));
+        // cell 03
+        cells.push(Box::new(NorGate {}));
 
-        cells.push(Box::new(NorGate {})); // cell 02
-        cells.push(Box::new(NorGate {})); // cell 03
-        cells.push(Box::new(Print {})); // cell 04 Q
-        cells.push(Box::new(Print {})); // cell 05 Q!
+        // Describe waveform to assert on Q
         let mut test_waveform = btree_map::BTreeMap::new();
         test_waveform.insert(0, Signal::UncontrolledTrue);
         test_waveform.insert(1, Signal::UncontrolledFalse);
         test_waveform.insert(2, Signal::UncontrolledTrue);
         test_waveform.insert(3, Signal::UncontrolledFalse);
-        test_waveform.insert(4, Signal::UncontrolledTrue);
-        test_waveform.insert(5, Signal::UncontrolledFalse);
-        test_waveform.insert(6, Signal::UncontrolledTrue);
-        test_waveform.insert(7, Signal::UncontrolledFalse);
-        test_waveform.insert(8, Signal::UncontrolledTrue);
-        test_waveform.insert(9, Signal::UncontrolledFalse);
-        test_waveform.insert(10, Signal::UncontrolledTrue);
-        test_waveform.insert(11, Signal::UncontrolledFalse);
-        test_waveform.insert(12, Signal::UncontrolledTrue);
-        test_waveform.insert(13, Signal::UncontrolledFalse);
-        test_waveform.insert(14, Signal::UncontrolledTrue);
-        test_waveform.insert(15, Signal::UncontrolledFalse);
-        test_waveform.insert(16, Signal::UncontrolledTrue);
-        test_waveform.insert(17, Signal::UncontrolledFalse);
-        test_waveform.insert(18, Signal::UncontrolledTrue);
-        test_waveform.insert(19, Signal::UncontrolledFalse);
+        test_waveform.insert(4, Signal::UncontrolledFalse);
+        test_waveform.insert(13, Signal::UncontrolledTrue);
         test_waveform.insert(20, Signal::UncontrolledFalse);
-        test_waveform.insert(61, Signal::UncontrolledTrue);
-        test_waveform.insert(100, Signal::UncontrolledFalse);
-        test_waveform.insert(110, Signal::False);
+        test_waveform.insert(22, Signal::False);
+
+        // cell 04 Q Assert
         cells.push(Box::new(DeltaAssert {
             waveform: test_waveform,
-            period: 120,
-            setup_time: 22,
+            period: 24,
+            setup_time: 6,
             phase_offset: 2,
-        })); // cell 06 Assert watch
+        }));
+
+        // Optional printing (don't enable if you aren't actively debugging since print is slow to run)
+        if PRINT_Q {
+            cells.push(Box::new(Print {})); // cell 05 Q
+        }
+        if PRINT_Q_NOT {
+            cells.push(Box::new(Print {})); // cell 06 Q!
+        }
 
         let mut wires = HashMap::new();
         // connect nor gates to clock inputs
@@ -632,17 +633,17 @@ mod tests {
         );
         // connect Print to Q
         wires.insert(
-            Drain(Address(CellHandle(4), PortHandle(1))),
+            Drain(Address(CellHandle(5), PortHandle(1))),
             Source(Address(CellHandle(2), PortHandle(0))),
         );
         // connect Print to Q!
         wires.insert(
-            Drain(Address(CellHandle(5), PortHandle(1))),
+            Drain(Address(CellHandle(6), PortHandle(1))),
             Source(Address(CellHandle(3), PortHandle(0))),
         );
         // connect Testing Assert to Q
         wires.insert(
-            Drain(Address(CellHandle(6), PortHandle(1))),
+            Drain(Address(CellHandle(4), PortHandle(1))),
             Source(Address(CellHandle(2), PortHandle(0))),
         );
 
@@ -656,7 +657,7 @@ mod tests {
             }],
         };
 
-        let mut circuit = netlist.as_circuit(ModuleHandle(0)).unwrap();
+        let mut circuit = netlist.as_circuit(ModuleHandle(0), 2).unwrap();
 
         for idx in 0..240 {
             circuit.tick()

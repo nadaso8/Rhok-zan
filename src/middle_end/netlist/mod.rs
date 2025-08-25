@@ -667,7 +667,13 @@ mod tests {
     #[test]
     /// instantiate a full adder and test that it instantiates correctly.
     fn test_case_full_adder() {
-        todo!()
+        const PRINT_Z: bool = false;
+        const PRINT_C: bool = false;
+
+        let mut cells: Vec<Box<dyn Cell>> = Vec::new();
+        let mut wires: HashMap<Drain, Source> = HashMap::new();
+
+        todo!("unfinished")
     }
 
     #[test]

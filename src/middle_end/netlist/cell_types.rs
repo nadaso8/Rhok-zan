@@ -1,12 +1,7 @@
 use circuit::signal::{self, Signal};
 
 use super::*;
-use std::{
-    borrow::BorrowMut,
-    rc::{self, Rc},
-    sync::mpsc::{channel, Receiver, SyncSender},
-    u128, usize,
-};
+use std::{sync::mpsc::SyncSender, u128, usize};
 
 #[derive(Clone, Debug)]
 pub struct ModuleInstance {

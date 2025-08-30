@@ -5,9 +5,8 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-# [patch.crates-io]
-# mlir-sys = { git = "https://github.com/nadaso8/mlir-sys-nixos.compat.git" }
-
 [dependencies]
+crossterm = "0.29.0"
+ratatui = "0.29.0"
 rayon = "1.8.1"
 sv-parser = "0.13.3"

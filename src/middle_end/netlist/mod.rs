@@ -9,17 +9,12 @@ translation.
 pub mod cell_types;
 
 use crate::back_end::circuit::{self, operation::SignalID};
-use std::{collections::HashMap, fmt::Debug, iter, sync::Arc};
+use crate::uuid::Uuid;
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 #[derive(Debug)]
-struct Netlist {
-    modules: Vec<Module>,
-}
-
-impl From<sv_parser::SyntaxTree> for Netlist {
-    fn from(value: sv_parser::SyntaxTree) -> Self {
-        todo!()
-    }
+pub struct Netlist {
+    modules: HashMap<ModuleHandle, Module>,
 }
 
 impl Netlist {
@@ -60,7 +55,7 @@ impl Netlist {
 
         // intitialize namespace by ensuring all allocations from
         // parent module are added.
-        for (port_idx, port_desc) in module.portlist.iter().enumerate() {
+        for (port_handle, port_desc) in module.portlist.iter() {
             let alloc = match port_allocations.get(port_idx) {
                 Some(t) => t,
                 None => {
@@ -414,35 +409,23 @@ impl Netlist {
 
         Ok(())
     }
-
-    fn mk_module(&mut self, name: String) {
-        self.modules.push(Module::new(name));
-    }
-
-    fn get_mut(&mut self, handle: ModuleHandle) -> Option<&mut Module> {
-        self.modules.get_mut(handle.0)
-    }
-
-    fn get(&self, handle: ModuleHandle) -> Option<&Module> {
-        self.modules.get(handle.0)
-    }
 }
 
 #[derive(Debug)]
 struct Module {
     name: String,
-    portlist: Vec<Port>,
+    portlist: HashMap<PortHandle, Port>,
     wires: HashMap<Drain, Source>,
-    cells: Vec<Box<dyn Cell>>,
+    cells: HashMap<CellHandle, Box<dyn Cell>>,
 }
 
 impl Module {
     fn new(name: String) -> Self {
         Self {
             name: name,
-            portlist: Vec::new(),
+            portlist: HashMap::new(),
             wires: HashMap::new(),
-            cells: Vec::new(),
+            cells: HashMap::new(),
         }
     }
 
@@ -467,11 +450,11 @@ pub trait Cell: Debug {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct ModuleHandle(usize);
+pub struct ModuleHandle(Uuid);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct CellHandle(usize);
+pub struct CellHandle(Uuid);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct PortHandle(usize);
+pub struct PortHandle(Uuid);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct Address(CellHandle, PortHandle);
 
@@ -519,13 +502,15 @@ pub enum PrimitiveType {
     Output(Arc<dyn Fn(usize, u128, circuit::signal::Signal) + Sync + Send>),
 }
 
-#[derive(Debug)]
-enum NetlistLowerError {
+#[derive(Clone, Copy, Debug)]
+pub enum NetlistLowerError {
     EmptyModule,
     ModuleHandleDNE,
     PortNotAllocated,
     ChildPortNotAllocated,
 }
+
+pub struct NetlistLowerContext {}
 
 #[cfg(test)]
 mod tests {

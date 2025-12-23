@@ -17,12 +17,6 @@ pub struct Netlist {
     modules: Vec<Module>,
 }
 
-impl From<sv_parser::SyntaxTree> for Netlist {
-    fn from(value: sv_parser::SyntaxTree) -> Self {
-        todo!()
-    }
-}
-
 impl Netlist {
     pub fn as_circuit(
         &self,

@@ -13,6 +13,7 @@ use std::{collections::HashMap, fmt::Debug, iter, sync::Arc};
 
 #[derive(Debug)]
 pub struct Netlist {
+    root_module: usize,
     modules: Vec<Module>,
 }
 

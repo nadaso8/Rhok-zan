@@ -12,7 +12,7 @@ use crate::back_end::circuit::{self, operation::SignalID};
 use std::{collections::HashMap, fmt::Debug, iter, sync::Arc};
 
 #[derive(Debug)]
-struct Netlist {
+pub struct Netlist {
     modules: Vec<Module>,
 }
 

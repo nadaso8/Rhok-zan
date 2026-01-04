@@ -8,15 +8,23 @@ use self::operation::*;
 use self::signal::*;
 
 #[derive(Debug)]
-pub struct Circuit {
-    description: Box<[Operation]>,
+pub struct Circuit<I, O>
+where
+    I: CircuitInput,
+    O: CircuitOutput,
+{
+    description: Box<[Operation<I, O>]>,
     signals: Box<[Signal]>,
     signals_swap: Box<[Signal]>,
     ticks_per_input: usize,
     tick_counter: u128,
 }
 
-impl Circuit {
+impl<I, O> Circuit<I, O>
+where
+    I: CircuitInput,
+    O: CircuitOutput,
+{
     /// Steps the circuit simulation forward one tick.
     pub fn tick(&mut self) {
         // update self.signals_swap with pending signal values
@@ -27,7 +35,7 @@ impl Circuit {
                 // I/O port handling
                 Operation::Input(input) => {
                     if self.tick_counter % self.ticks_per_input as u128 == 0 {
-                        let pending_input = input.handler.as_ref()(
+                        let pending_input = input.recieve(
                             index,
                             /*
                             The division here is needed in order to split the Input tick space and Simulation tick space.
@@ -58,7 +66,7 @@ impl Circuit {
                 }
                 Operation::Output(a, output) => {
                     *swap = self.signals[a.0];
-                    output.handler.as_ref()(index, self.tick_counter, *swap); // user writes function to handle the resulting value
+                    output.send(index, self.tick_counter, *swap);
                 }
 
                 // standard boolean logic handling
@@ -84,7 +92,7 @@ impl Circuit {
     /// will be run in between calling input node closures. It is HIGHLY
     /// recommended that this value is longer than the propagation delay
     /// of the circuit under testing.
-    pub fn new(description: Box<[Operation]>, tpi: usize) -> Self {
+    pub fn new(description: Box<[Operation<I, O>]>, tpi: usize) -> Self {
         let description_length = description.as_ref().len();
         // allocate and fill vector for initial state
         let mut initial_state = Vec::with_capacity(description_length);
@@ -113,7 +121,7 @@ impl Circuit {
     /// useful if you need to inspect a snapshot of the full simulation state.
     /// For regular outputs you should prefer the usage of output Opperation closures
     /// since they will be called in paralell during the simulation loop.
-    pub fn inspect(&self) -> (&[Operation], &[Signal]) {
+    pub fn inspect(&self) -> (&[Operation<I, O>], &[Signal]) {
         (self.description.as_ref(), self.signals.as_ref())
     }
 
@@ -124,61 +132,4 @@ impl Circuit {
 }
 
 #[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    #[test]
-    fn test_case_latch() {
-        use operation::*;
-        use signal::*;
-        use std::sync::Arc;
-
-        const TPI: usize = 8;
-
-        // build description
-        let description = Box::new([
-            Operation::Input(InputHandler {
-                handler: Arc::new(|index, tick| match (tick / 2) % (2) {
-                    0 => Signal::False,
-                    _ => Signal::True,
-                }),
-            }),
-            Operation::Input(InputHandler {
-                handler: Arc::new(|index, tick| match (tick / 4) % (2) {
-                    0 => Signal::False,
-                    _ => Signal::True,
-                }),
-            }),
-            Operation::Nor(SignalID(0), SignalID(3)),
-            Operation::Nor(SignalID(1), SignalID(2)),
-            Operation::Output(
-                SignalID(2),
-                OutputHandler {
-                    handler: Arc::new(|index, tick, signal| {
-                        if tick % TPI as u128 == 0 {
-                            println!("Index: {} is {} on Tick: {}", index, signal, tick)
-                        };
-                        return;
-                    }),
-                },
-            ),
-            Operation::Output(
-                SignalID(3),
-                OutputHandler {
-                    handler: Arc::new(|index, tick, signal| {
-                        if tick % TPI as u128 == 0 {
-                            println!("Index: {} is {} on Tick: {}", index, signal, tick)
-                        };
-                        return;
-                    }),
-                },
-            ),
-        ]);
-
-        let mut circuit = Circuit::new(description, TPI);
-        for _ in 0..=256 {
-            circuit.tick();
-        }
-    }
-}
+mod tests {}

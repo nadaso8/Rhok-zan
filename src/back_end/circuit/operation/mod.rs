@@ -21,7 +21,7 @@ where
 }
 
 pub trait CircuitInput: Debug + Clone + Sync + Send {
-    fn recieve(&self, gate_id: usize, tick: u128) -> super::Signal;
+    fn recieve(&self, gate_id: usize, tick: u128, tpi: usize) -> super::Signal;
 }
 
 pub trait CircuitOutput: Debug + Clone + Sync + Send {

@@ -48,6 +48,7 @@ where
                             false.
                             */
                             self.tick_counter / self.ticks_per_input as u128,
+                            self.ticks_per_input,
                         );
 
                         // This match statment exists to inject an uncontrolled vlaue on the leading edge
@@ -108,13 +109,13 @@ where
         }
         assert_eq!(description_length, initial_swap.len());
 
-        return Circuit {
+        Self {
             description,
             signals: initial_state.into_boxed_slice(),
             signals_swap: initial_swap.into_boxed_slice(),
             ticks_per_input: tpi,
             tick_counter: 0,
-        };
+        }
     }
 
     /// Gets the current state of the simulation and its description

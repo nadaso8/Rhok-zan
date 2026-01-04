@@ -20,10 +20,10 @@ where
     Xnor(SignalID, SignalID),
 }
 
-pub trait CircuitInput: Debug + Clone {
-    fn recieve(gate_id: usize, tick: u128) -> super::Signal;
+pub trait CircuitInput: Debug + Clone + Sync + Send {
+    fn recieve(&self, gate_id: usize, tick: u128) -> super::Signal;
 }
 
-pub trait CircuitOutput: Debug + Clone {
-    fn send(gate_id: usize, tick: u128, state: super::Signal);
+pub trait CircuitOutput: Debug + Clone + Sync + Send {
+    fn send(&self, gate_id: usize, tick: u128, state: super::Signal);
 }

@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use self::operation::*;
 use self::signal::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Circuit<I, O>
 where
     I: CircuitInput,

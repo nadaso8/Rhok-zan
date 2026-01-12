@@ -15,6 +15,14 @@ earlier in the reservation phase. At any point if an input isn't found it should
 which will always use a high impedance signal this should be easy to insert at the last index of the circuit.
 */
 
-impl From<crate::middle_end::netlist::Netlist> for crate::back_end::circuit::Circuit {
-    fn from(value: crate::middle_end::netlist::Netlist) -> Self {}
+use super::operation::{CircuitInput, CircuitOutput};
+
+impl<I, O> From<crate::middle_end::netlist::Netlist> for crate::back_end::circuit::Circuit<I, O>
+where
+    I: CircuitInput,
+    O: CircuitOutput,
+{
+    fn from(value: crate::middle_end::netlist::Netlist) -> Self {
+        todo!()
+    }
 }

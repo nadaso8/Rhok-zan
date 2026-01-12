@@ -6,420 +6,149 @@ There is no god and no master in this domain. Simply the horrors and turmoil of 
 translation.
 */
 
-pub mod cell_types;
-
-use crate::back_end::circuit::{self, operation::SignalID};
-use std::{collections::HashMap, fmt::Debug, iter, sync::Arc};
+use crate::back_end::circuit::operation::{CircuitInput, CircuitOutput};
+use std::{collections::HashMap, fmt::Debug};
 
 #[derive(Debug)]
 pub struct Netlist {
-    root_module: usize,
-    modules: Vec<Module>,
+    pub root_module: ModuleHandle,
+    pub modules: HashMap<ModuleHandle, Module>,
 }
 
 impl Netlist {
-    pub fn as_circuit(
-        &self,
-        module_handle: ModuleHandle,
-        input_tick_ratio: usize,
-    ) -> Result<circuit::Circuit, NetlistLowerError> {
-        let mut gld = circuit::builder::GateLevelDescription::new();
-        let top = self.modules.get(module_handle.0).unwrap();
-
-        let mut port_allocations = Vec::new();
-        for _idx in 0..top.portlist.len() {
-            port_allocations.push(gld.rz_alloc())
-        }
-
-        self.lower(&mut gld, top, port_allocations)?;
-
-        Result::Ok(circuit::Circuit::new(gld.into_desc(), input_tick_ratio))
-    }
-
-    /// A recursive function which builds an instance of the provided module in
-    /// gate level description (gld) returning by reference. note that *all*
-    /// ports must be pre-allocated by the caller of the function.
-    fn lower(
-        &self,
-        gld: &mut circuit::builder::GateLevelDescription,
-        module: &Module,
-        port_allocations: Vec<SignalID>,
-    ) -> Result<(), NetlistLowerError> {
-        // we cannot instantiate a module which is empty.
-        if module.cells.is_empty() {
-            return Err(NetlistLowerError::EmptyModule);
-        };
-
-        // Setup namespace to keep track of where has been allocated.
-        let mut name_space: HashMap<Address, SignalID> = HashMap::new();
-
-        // intitialize namespace by ensuring all allocations from
-        // parent module are added.
-        for (port_idx, port_desc) in module.portlist.iter().enumerate() {
-            let alloc = match port_allocations.get(port_idx) {
-                Some(t) => t,
-                None => {
-                    return Result::Err(NetlistLowerError::PortNotAllocated);
+    /// Returns the number of primitive variant Cells that are present in the netlist.
+    /// this should be equivalent to cell_layout().enumerate().last().0 + 1 but with
+    /// a slightly more work efficient implementation
+    fn count_primitives(&self) -> NetlistSize {
+        let mut counts: Vec<(ModuleHandle, usize, HashMap<ModuleHandle, usize>)> = self
+            .modules
+            .iter()
+            .map(|(handle, module)| {
+                let mut primitives: usize = 0;
+                let mut sub_modules: HashMap<ModuleHandle, usize> = HashMap::new();
+                for (_, cell) in &module.cells {
+                    match cell {
+                        Cell::Primitive(_) => primitives += 1,
+                        Cell::ModuleLink(link) => {
+                            if let Some(value) = sub_modules.get_mut(&link) {
+                                *value += 1;
+                            } else {
+                                sub_modules.insert(*link, 1);
+                            }
+                        }
+                        Cell::InputProxy(_) => (),
+                    }
                 }
+                (*handle, primitives, sub_modules)
+            })
+            .collect();
+
+        while (counts.len() > 1) {
+            let (index, (terminal_module, terminal_primitives, _)) = match counts
+                .iter()
+                .enumerate()
+                .find(|(_, (.., sub_modules))| sub_modules.is_empty())
+            {
+                Some((index, terminal)) => (index, terminal.clone()),
+                None => return NetlistSize::Indefinite(),
             };
-            name_space.insert(port_desc.local_location, *alloc);
-        }
 
-        for (cell_idx, cell) in module.cells.iter().enumerate() {
-            let cell_handle = CellHandle(cell_idx);
-
-            let mut child_port_mapping = Vec::new();
-            let cell_interface = match cell.interface() {
-                CellInterface::Builtin(t) => t,
-                CellInterface::UserModule(module) => match self.modules.get(module.0) {
-                    Some(t) => Box::from(t.portlist.as_slice()),
-                    None => {
-                        return Result::Err(NetlistLowerError::ModuleHandleDNE);
+            for (_, primitives, sub_modules) in &mut counts {
+                match sub_modules.remove(&terminal_module) {
+                    Some(module_instance_count) => {
+                        *primitives += terminal_primitives * module_instance_count;
                     }
-                },
-            };
-            for (port_idx, port_desc) in cell_interface.iter().enumerate() {
-                let port_handle = PortHandle(port_idx);
-                let current_address = Address(cell_handle, port_handle);
-
-                let signal_id = match port_desc.port_type {
-                    PortType::Input => {
-                        // lookup source address or allocate and add it to namespace if needed
-                        match module.wires.get(&Drain(current_address)) {
-                            Option::Some(source_address) => match name_space.get(&source_address.0)
-                            {
-                                Some(sig) => *sig,
-                                None => {
-                                    let sig = gld.rz_alloc();
-                                    name_space.insert(source_address.0, sig);
-                                    sig
-                                }
-                            },
-                            None => {
-                                // **** you allocates your unlinked address.
-                                // In all seriousness this should log a warning for the user
-                                // since if they want a high impedance link it should be
-                                // added to their design explicitly not via fallback allocation
-
-                                gld.rz_alloc()
-                            }
-                        }
-                    }
-                    PortType::Output => {
-                        // allocate and add current address to namespace if needed
-                        match name_space.get(&current_address) {
-                            Some(id) => *id,
-                            None => {
-                                let id = gld.rz_alloc();
-                                name_space.insert(current_address, id);
-                                id
-                            }
-                        }
-                    }
+                    None => (),
                 };
-
-                child_port_mapping.push(signal_id);
             }
 
-            // handle construction of cell contents
-            match cell.contents() {
-                CellContents::BuiltinModule(module) => {
-                    self.lower(gld, module.as_ref(), child_port_mapping)?;
-                }
-                CellContents::UserModule(module_handle) => {
-                    // get user specified module from list of modules in self
-                    let module = match self.modules.get(module_handle.0) {
-                        Some(t) => t,
-                        None => {
-                            return Result::Err(NetlistLowerError::ModuleHandleDNE);
-                        }
-                    };
-
-                    // recurse into new module passing in the child_port_mapping generated
-                    // at current scope of
-                    self.lower(gld, module, child_port_mapping)?;
-                }
-                CellContents::Primitive(gate_type) => {
-                    // Get all the port mappings primitives might use.
-                    // The port indexes for this are hardcoded, but since
-                    // I can't come up with a more sensible mappping i'm not
-                    // going to make this more generalized.
-                    let loc = child_port_mapping.get(0);
-                    let lhs = child_port_mapping.get(1);
-                    let rhs = child_port_mapping.get(2);
-
-                    // This match statement just matches to the gate_type and calls
-                    // the appropriate function on gld to instantiate it. It's very
-                    // long and gross but not much happens.
-                    match gate_type {
-                        // unary
-                        PrimitiveType::Not => {
-                            gld.mk_not(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                            )
-                            .unwrap();
-                        }
-
-                        // binary
-                        PrimitiveType::And => {
-                            gld.mk_and(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match rhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                            )
-                            .unwrap();
-                        }
-                        PrimitiveType::Nand => {
-                            gld.mk_nand(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match rhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                            )
-                            .unwrap();
-                        }
-                        PrimitiveType::Or => {
-                            gld.mk_or(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match rhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                            )
-                            .unwrap();
-                        }
-                        PrimitiveType::Nor => {
-                            gld.mk_nor(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match rhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                            )
-                            .unwrap();
-                        }
-                        PrimitiveType::Xor => {
-                            gld.mk_xor(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match rhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                            )
-                            .unwrap();
-                        }
-                        PrimitiveType::Xnor => {
-                            gld.mk_xnor(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match rhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                            )
-                            .unwrap();
-                        }
-                        // special
-                        PrimitiveType::Input(expr) => {
-                            gld.mk_input(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                expr,
-                            )
-                            .unwrap();
-                        }
-                        PrimitiveType::Output(expr) => {
-                            gld.mk_output(
-                                match loc {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                match lhs {
-                                    Some(sig) => *sig,
-                                    None => {
-                                        return Result::Err(
-                                            NetlistLowerError::ChildPortNotAllocated,
-                                        );
-                                    }
-                                },
-                                expr,
-                            )
-                            .unwrap();
-                        }
-                    }
-                }
-                CellContents::InputPlaceholder => {
-                    /*
-                    literally do nothing for this branch do not allocate don't pass go don't collect
-                    200$.
-
-                    This is a special case of cell (a hack lol) so that cells local to
-                    the current module have something to link to. It should be given an allocation
-                    passed in from the parent module.
-
-                    There is no analogue for output ports because circuit representation used for simulation
-                    is singally linked meaning each node is only aware of nodes which it depends on. So the
-                    local adress which said output links to will simply be given an allocation from the parent
-                    up front.
-                    */
-                }
-            };
+            counts.remove(index);
         }
 
-        Ok(())
-    }
+        assert_eq!(counts.len(), 1);
+        let (final_module, final_count, final_sub_modules) = counts.first().unwrap();
 
-    fn mk_module(&mut self, name: String) {
-        self.modules.push(Module::new(name));
-    }
+        assert_eq!(*final_module, self.root_module);
+        assert!(final_sub_modules.is_empty());
 
-    fn get_mut(&mut self, handle: ModuleHandle) -> Option<&mut Module> {
-        self.modules.get_mut(handle.0)
+        return NetlistSize::Definite(*final_count);
     }
+    /// Returns an iterator over each location in a netlist which contains a primitive gate type.
+    ///
+    fn cell_layout(&self) -> CellLayoutIterator {
+        CellLayoutIterator {
+            source_netlist: &self,
+            module_iterator_stack: Vec::from([self
+                .modules
+                .get(&self.root_module)
+                .unwrap()
+                .cells
+                .iter()]),
+            cursor: Vec::new(),
+        }
+    }
+}
 
-    fn get(&self, handle: ModuleHandle) -> Option<&Module> {
-        self.modules.get(handle.0)
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+enum NetlistSize {
+    Definite(usize),
+    Indefinite(),
+}
+/// An iterator over all locations in a netlist as a
+struct CellLayoutIterator<'a> {
+    source_netlist: &'a Netlist,
+    module_iterator_stack: Vec<std::collections::hash_map::Iter<'a, CellHandle, Cell>>,
+    cursor: Vec<CellHandle>,
+}
+
+impl Iterator for CellLayoutIterator<'_> {
+    type Item = Vec<CellHandle>;
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(iterator) = self.module_iterator_stack.last_mut() {
+            match iterator.next() {
+                Some((cell_handle, cell)) => {
+                    // If the cursor is ever longer than the module iterator stack there's a
+                    // logical error that could cause cascading errors. it's best to panic early.
+                    assert!(self.module_iterator_stack.len() >= self.cursor.len());
+
+                    match cell {
+                        Cell::ModuleLink(module_handle) => {
+                            // new module found update cursor with cell_handle for ModuleLink Cell
+                            // then push it's iterator onto stack.
+                            if self.module_iterator_stack.len() == self.cursor.len() {
+                                self.cursor.pop();
+                            }
+                            self.cursor.push(*cell_handle);
+                            self.module_iterator_stack.push(
+                                self.source_netlist
+                                    .modules
+                                    .get(module_handle)
+                                    .unwrap()
+                                    .cells
+                                    .iter(),
+                            );
+                            continue;
+                        }
+                        Cell::Primitive(_) => {
+                            // Next primitive found update cursor and return next entry
+                            if self.module_iterator_stack.len() == self.cursor.len() {
+                                self.cursor.pop();
+                            }
+                            self.cursor.push(*cell_handle);
+                            return Some(self.cursor.clone());
+                        }
+                        Cell::InputProxy(_) => continue, // Proxies arent instantiable and should be skipped
+                    }
+                }
+                None => {
+                    // end of module continue one level down the stack
+                    self.cursor.pop();
+                    self.module_iterator_stack.pop();
+                    continue;
+                }
+            }
+        }
+        None
     }
 }
 
@@ -428,7 +157,7 @@ struct Module {
     name: String,
     portlist: Vec<Port>,
     wires: HashMap<Drain, Source>,
-    cells: Vec<Box<dyn Cell>>,
+    cells: HashMap<CellHandle, Cell>,
 }
 
 impl Module {
@@ -437,31 +166,19 @@ impl Module {
             name: name,
             portlist: Vec::new(),
             wires: HashMap::new(),
-            cells: Vec::new(),
+            cells: HashMap::new(),
         }
     }
-
-    fn mk_cell() {
-        todo!()
-    }
-
-    fn mk_wire() {
-        todo!()
-    }
 }
 
-pub trait Cell: Debug {
-    /// returns a box containing a deep copy of self
-    fn clone_as_box(&self) -> Box<dyn Cell>;
-
-    /// returns a lowered description of the Cell
-    fn contents(&self) -> CellContents;
-
-    /// returns a description of the cell interface
-    fn interface(&self) -> CellInterface;
+#[derive(Debug, Clone)]
+enum Cell {
+    ModuleLink(ModuleHandle),
+    Primitive(PrimitiveType),
+    InputProxy(PortHandle),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct ModuleHandle(usize);
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct CellHandle(usize);
@@ -488,18 +205,7 @@ pub enum PortType {
     Output,
 }
 
-pub enum CellContents {
-    Primitive(PrimitiveType),
-    UserModule(ModuleHandle),
-    BuiltinModule(Box<Module>),
-    InputPlaceholder,
-}
-#[derive(Debug)]
-pub enum CellInterface {
-    Builtin(Box<[Port]>),
-    UserModule(ModuleHandle),
-}
-
+#[derive(Debug, Clone)]
 pub enum PrimitiveType {
     Not,
     And,
@@ -508,172 +214,310 @@ pub enum PrimitiveType {
     Nor,
     Xor,
     Xnor,
-    // it likely is possible to do these without refrence counting but
-    // this should work and it's not worth engineering that right now
-    Input(Arc<dyn Fn(usize, u128) -> circuit::signal::Signal + Sync + Send>),
-    Output(Arc<dyn Fn(usize, u128, circuit::signal::Signal) + Sync + Send>),
-}
-
-#[derive(Debug)]
-enum NetlistLowerError {
-    EmptyModule,
-    ModuleHandleDNE,
-    PortNotAllocated,
-    ChildPortNotAllocated,
+    Input(),
+    Output(),
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::btree_map;
+    use std::{
+        collections::{HashMap, HashSet},
+        thread::panicking,
+    };
 
-    use circuit::signal::{self, Signal};
+    use crate::middle_end::netlist::{Netlist, NetlistSize};
 
-    use super::*;
-
-    #[test]
-    /// instantiates a 2 gate nor latch and simulates it to test that sequential behavior including race conditions is preserved
-    // TODO: remove make Print nodes be replaced with a NOP node to reduce test runtime if the testing isn't being run manually.
-    fn latch_lower_and_sim() {
-        let mut cells: Vec<Box<dyn Cell>> = Vec::new();
-        use cell_types::*;
-        const PRINT_Q: bool = false;
-        const PRINT_Q_NOT: bool = false;
-
-        // cell 00 S
-        cells.push(Box::new(Waveform {
-            setup_time: 0,
-            waveform: vec![
-                Signal::False, // (S:0, R:0)
-                Signal::False,
-                Signal::True, // (S:1, R:0)
-                Signal::True,
-                Signal::False, // (S:0, R:0)
-                Signal::False,
-                Signal::False, // (S:0, R:1)
-                Signal::False,
-                Signal::False, // (S:0, R:0)
-                Signal::False,
-                Signal::True, // (S:1, R:1)
-                Signal::True,
-            ],
-        }));
-        // cell 01 R
-        cells.push(Box::new(Waveform {
-            setup_time: 0,
-            waveform: vec![
-                Signal::False, // (S:0, R:0)
-                Signal::False,
-                Signal::False, // (S:1, R:0)
-                Signal::False,
-                Signal::False, // (S:0, R:0)
-                Signal::False,
-                Signal::True, // (S:0, R:1)
-                Signal::True,
-                Signal::False, // (S:0, R:0)
-                Signal::False,
-                Signal::True, // (S:1, R:1)
-                Signal::True,
-            ],
-        }));
-        // cell 02
-        cells.push(Box::new(NorGate {}));
-        // cell 03
-        cells.push(Box::new(NorGate {}));
-
-        // Describe waveform to assert on Q
-        let mut test_waveform = btree_map::BTreeMap::new();
-        test_waveform.insert(0, Signal::UncontrolledTrue);
-        test_waveform.insert(1, Signal::UncontrolledFalse);
-        test_waveform.insert(2, Signal::UncontrolledTrue);
-        test_waveform.insert(3, Signal::UncontrolledFalse);
-        test_waveform.insert(4, Signal::UncontrolledFalse);
-        test_waveform.insert(13, Signal::UncontrolledTrue);
-        test_waveform.insert(20, Signal::UncontrolledFalse);
-        test_waveform.insert(22, Signal::False);
-
-        // cell 04 Q Assert
-        cells.push(Box::new(DeltaAssert {
-            waveform: test_waveform,
-            period: 24,
-            setup_time: 6,
-            phase_offset: 2,
-        }));
-
-        // Optional printing (don't enable if you aren't actively debugging since print is slow to run)
-        if PRINT_Q {
-            cells.push(Box::new(Print {})); // cell 05 Q
+    use super::{Cell, CellHandle, Module, ModuleHandle};
+    /// This just de-dublicates some of my test data
+    fn test_netlist() -> Netlist {
+        Netlist {
+            root_module: ModuleHandle(0),
+            modules: HashMap::from_iter(
+                Vec::from([
+                    (
+                        ModuleHandle(0),
+                        Module {
+                            name: "A".to_string(),
+                            portlist: Vec::new(),
+                            wires: HashMap::new(),
+                            cells: HashMap::from_iter(
+                                Vec::from([
+                                    (
+                                        CellHandle(473980281),
+                                        Cell::InputProxy(super::PortHandle(0)),
+                                    ),
+                                    (
+                                        CellHandle(4327980),
+                                        Cell::ModuleLink(super::ModuleHandle(1)),
+                                    ),
+                                    (
+                                        CellHandle(0796596123),
+                                        Cell::Primitive(super::PrimitiveType::And),
+                                    ),
+                                    (
+                                        CellHandle(2039845657),
+                                        Cell::InputProxy(super::PortHandle(1)),
+                                    ),
+                                    (
+                                        CellHandle(130945672037),
+                                        Cell::ModuleLink(super::ModuleHandle(2)),
+                                    ),
+                                    (
+                                        CellHandle(50978234790),
+                                        Cell::Primitive(super::PrimitiveType::Xnor),
+                                    ),
+                                    (
+                                        CellHandle(4325630976),
+                                        Cell::ModuleLink(super::ModuleHandle(1)),
+                                    ),
+                                ])
+                                .into_iter(),
+                            ),
+                        },
+                    ),
+                    (
+                        ModuleHandle(1),
+                        Module {
+                            name: "B".to_string(),
+                            portlist: Vec::new(),
+                            wires: HashMap::new(),
+                            cells: HashMap::from_iter(
+                                Vec::from([
+                                    (
+                                        CellHandle(473980281),
+                                        Cell::InputProxy(super::PortHandle(0)),
+                                    ),
+                                    (
+                                        CellHandle(4327980),
+                                        Cell::ModuleLink(super::ModuleHandle(2)),
+                                    ),
+                                    (
+                                        CellHandle(0796596123),
+                                        Cell::Primitive(super::PrimitiveType::And),
+                                    ),
+                                    (
+                                        CellHandle(2039845657),
+                                        Cell::InputProxy(super::PortHandle(1)),
+                                    ),
+                                    (
+                                        CellHandle(130945672037),
+                                        Cell::ModuleLink(super::ModuleHandle(2)),
+                                    ),
+                                ])
+                                .into_iter(),
+                            ),
+                        },
+                    ),
+                    (
+                        ModuleHandle(2),
+                        Module {
+                            name: "C".to_string(),
+                            portlist: Vec::new(),
+                            wires: HashMap::new(),
+                            cells: HashMap::from_iter(
+                                Vec::from([
+                                    (
+                                        CellHandle(473980281),
+                                        Cell::InputProxy(super::PortHandle(0)),
+                                    ),
+                                    (
+                                        CellHandle(0796596123),
+                                        Cell::Primitive(super::PrimitiveType::And),
+                                    ),
+                                    (
+                                        CellHandle(2039845657),
+                                        Cell::InputProxy(super::PortHandle(1)),
+                                    ),
+                                ])
+                                .into_iter(),
+                            ),
+                        },
+                    ),
+                ])
+                .into_iter(),
+            ),
         }
-        if PRINT_Q_NOT {
-            cells.push(Box::new(Print {})); // cell 06 Q!
-        }
+    }
 
-        let mut wires = HashMap::new();
-        // connect nor gates to clock inputs
-        wires.insert(
-            Drain(Address(CellHandle(2), PortHandle(1))),
-            Source(Address(CellHandle(0), PortHandle(0))),
-        );
-        wires.insert(
-            Drain(Address(CellHandle(3), PortHandle(1))),
-            Source(Address(CellHandle(1), PortHandle(0))),
-        );
-        // connect nor gates to eachother creating feedback path
-        wires.insert(
-            Drain(Address(CellHandle(2), PortHandle(2))),
-            Source(Address(CellHandle(3), PortHandle(0))),
-        );
-        wires.insert(
-            Drain(Address(CellHandle(3), PortHandle(2))),
-            Source(Address(CellHandle(2), PortHandle(0))),
-        );
-        // connect Print to Q
-        wires.insert(
-            Drain(Address(CellHandle(5), PortHandle(1))),
-            Source(Address(CellHandle(2), PortHandle(0))),
-        );
-        // connect Print to Q!
-        wires.insert(
-            Drain(Address(CellHandle(6), PortHandle(1))),
-            Source(Address(CellHandle(3), PortHandle(0))),
-        );
-        // connect Testing Assert to Q
-        wires.insert(
-            Drain(Address(CellHandle(4), PortHandle(1))),
-            Source(Address(CellHandle(2), PortHandle(0))),
-        );
-
-        let netlist = Netlist {
-            modules: vec![Module {
-                name: "Latch".to_string(),
-                // No ports needed since this is top level module
-                portlist: Vec::new(),
-                wires,
-                cells,
-            }],
-        };
-
-        let mut circuit = netlist.as_circuit(ModuleHandle(0), 2).unwrap();
-
-        for idx in 0..240 {
-            circuit.tick()
+    /// Returns a netlist which is infinite in size due to a cyclic module reference
+    fn indefinite_netlist() -> Netlist {
+        Netlist {
+            root_module: ModuleHandle(0),
+            modules: HashMap::from_iter(
+                Vec::from([
+                    (
+                        ModuleHandle(0),
+                        Module {
+                            name: "A".to_string(),
+                            portlist: Vec::new(),
+                            wires: HashMap::new(),
+                            cells: HashMap::from_iter(
+                                Vec::from([
+                                    (
+                                        CellHandle(473980281),
+                                        Cell::InputProxy(super::PortHandle(0)),
+                                    ),
+                                    (
+                                        CellHandle(4327980),
+                                        Cell::ModuleLink(super::ModuleHandle(1)),
+                                    ),
+                                    (
+                                        CellHandle(0796596123),
+                                        Cell::Primitive(super::PrimitiveType::And),
+                                    ),
+                                    (
+                                        CellHandle(2039845657),
+                                        Cell::InputProxy(super::PortHandle(1)),
+                                    ),
+                                    (
+                                        CellHandle(130945672037),
+                                        Cell::ModuleLink(super::ModuleHandle(2)),
+                                    ),
+                                    (
+                                        CellHandle(50978234790),
+                                        Cell::Primitive(super::PrimitiveType::Xnor),
+                                    ),
+                                    (
+                                        CellHandle(4325630976),
+                                        Cell::ModuleLink(super::ModuleHandle(1)),
+                                    ),
+                                ])
+                                .into_iter(),
+                            ),
+                        },
+                    ),
+                    (
+                        ModuleHandle(1),
+                        Module {
+                            name: "B".to_string(),
+                            portlist: Vec::new(),
+                            wires: HashMap::new(),
+                            cells: HashMap::from_iter(
+                                Vec::from([
+                                    (
+                                        CellHandle(473980281),
+                                        Cell::InputProxy(super::PortHandle(0)),
+                                    ),
+                                    (
+                                        CellHandle(4327980),
+                                        Cell::ModuleLink(super::ModuleHandle(2)),
+                                    ),
+                                    (
+                                        CellHandle(0796596123),
+                                        Cell::Primitive(super::PrimitiveType::And),
+                                    ),
+                                    (
+                                        CellHandle(2039845657),
+                                        Cell::InputProxy(super::PortHandle(1)),
+                                    ),
+                                    (
+                                        CellHandle(130945672037),
+                                        Cell::ModuleLink(super::ModuleHandle(2)),
+                                    ),
+                                ])
+                                .into_iter(),
+                            ),
+                        },
+                    ),
+                    (
+                        ModuleHandle(2),
+                        Module {
+                            name: "C".to_string(),
+                            portlist: Vec::new(),
+                            wires: HashMap::new(),
+                            cells: HashMap::from_iter(
+                                Vec::from([
+                                    (
+                                        CellHandle(473980281),
+                                        Cell::InputProxy(super::PortHandle(0)),
+                                    ),
+                                    (
+                                        CellHandle(0796596123),
+                                        Cell::Primitive(super::PrimitiveType::And),
+                                    ),
+                                    (
+                                        CellHandle(2039845657),
+                                        Cell::InputProxy(super::PortHandle(1)),
+                                    ),
+                                    (
+                                        CellHandle(130945672037),
+                                        Cell::ModuleLink(super::ModuleHandle(1)),
+                                    ),
+                                ])
+                                .into_iter(),
+                            ),
+                        },
+                    ),
+                ])
+                .into_iter(),
+            ),
         }
     }
 
     #[test]
-    /// instantiate a full adder and test that it instantiates correctly.
-    fn test_case_full_adder() {
-        const PRINT_Z: bool = false;
-        const PRINT_C: bool = false;
+    fn iterator_test() {
+        let test_netlist = test_netlist();
+        let mut expected_result = Vec::from([
+            Vec::from([CellHandle(4327980), CellHandle(796596123)]),
+            Vec::from([
+                CellHandle(4327980),
+                CellHandle(130945672037),
+                CellHandle(796596123),
+            ]),
+            Vec::from([
+                CellHandle(4327980),
+                CellHandle(4327980),
+                CellHandle(796596123),
+            ]),
+            Vec::from([CellHandle(50978234790)]),
+            Vec::from([CellHandle(796596123)]),
+            Vec::from([CellHandle(130945672037), CellHandle(796596123)]),
+            Vec::from([CellHandle(4325630976), CellHandle(796596123)]),
+            Vec::from([
+                CellHandle(4325630976),
+                CellHandle(130945672037),
+                CellHandle(796596123),
+            ]),
+            Vec::from([
+                CellHandle(4325630976),
+                CellHandle(4327980),
+                CellHandle(796596123),
+            ]),
+        ]);
 
-        let mut cells: Vec<Box<dyn Cell>> = Vec::new();
-        let mut wires: HashMap<Drain, Source> = HashMap::new();
+        for (path_no, path) in test_netlist.cell_layout().enumerate() {
+            // visualization
+            print!("path({path_no}) = [");
+            for (cell_handle_no, cell_handle) in path.iter().enumerate() {
+                print!("{}", cell_handle.0);
+                if cell_handle_no < path.len() - 1 {
+                    print!(", ");
+                }
+            }
+            println!("]");
 
-        todo!("unfinished")
+            // actual testing against expected results
+            let expected_index = expected_result
+                .iter()
+                .position(|x| path == *x)
+                .expect("Last path was not in expected result");
+            expected_result.remove(expected_index);
+        }
+
+        // all expected results should be consumed after test is done
+        assert!(expected_result.is_empty())
     }
 
     #[test]
-    /// instantiate a 2 bit ripple adder and test that it instantiates correctly.
-    fn test_case_ripple_adder() {
-        todo!()
+    fn primitive_count_test_hard_coded() {
+        assert_eq!(NetlistSize::Definite(9), test_netlist().count_primitives())
+    }
+
+    #[test]
+    fn infinite_netlist_test() {
+        assert_eq!(
+            NetlistSize::Indefinite(),
+            indefinite_netlist().count_primitives()
+        )
     }
 }

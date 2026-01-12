@@ -24,6 +24,7 @@ impl Netlist {
             .modules
             .iter()
             .map(|(handle, module)| {
+                // this should be able to be re-writen as a fold() on an iterator over module.cells
                 let mut primitives: usize = 0;
                 let mut sub_modules: HashMap<ModuleHandle, usize> = HashMap::new();
                 for (_, cell) in &module.cells {
@@ -73,8 +74,10 @@ impl Netlist {
 
         return NetlistSize::Definite(*final_count);
     }
-    /// Returns an iterator over each location in a netlist which contains a primitive gate type.
-    ///
+
+    /// Returns an iterator of paths to each location in a netlist which contains a primitive gate type.
+    /// Note this iterator may be infinite for netlists which have cyclic instances between modules.
+    /// To check if this is the case you should first use the count_primitives() method.
     fn cell_layout(&self) -> CellLayoutIterator {
         CellLayoutIterator {
             source_netlist: &self,

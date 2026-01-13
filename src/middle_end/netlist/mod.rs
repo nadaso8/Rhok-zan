@@ -7,7 +7,7 @@ translation.
 */
 
 use crate::back_end::circuit::operation::{CircuitInput, CircuitOutput};
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, usize};
 
 #[derive(Debug)]
 pub struct Netlist {
@@ -24,22 +24,27 @@ impl Netlist {
             .modules
             .iter()
             .map(|(handle, module)| {
-                // this should be able to be re-writen as a fold() on an iterator over module.cells
-                let mut primitives: usize = 0;
-                let mut sub_modules: HashMap<ModuleHandle, usize> = HashMap::new();
-                for (_, cell) in &module.cells {
-                    match cell {
-                        Cell::Primitive(_) => primitives += 1,
-                        Cell::ModuleLink(link) => {
-                            if let Some(value) = sub_modules.get_mut(&link) {
-                                *value += 1;
-                            } else {
-                                sub_modules.insert(*link, 1);
+                // generate a count of the primitives and sub modules within each module.
+                let (primitives, sub_modules) = module.cells.iter().fold(
+                    (0, HashMap::new()),
+                    |(mut primitives, mut sub_modules), (_, cell)| {
+                        // check if current cell is primitive or submodule instance
+                        match cell {
+                            Cell::Primitive(_) => primitives += 1,
+                            Cell::ModuleLink(link) => {
+                                if let Some(value) = sub_modules.get_mut(link) {
+                                    *value += 1;
+                                } else {
+                                    sub_modules.insert(*link, 1);
+                                }
                             }
-                        }
-                        Cell::InputProxy(_) => (),
-                    }
-                }
+                            Cell::InputProxy(_) => (),
+                        };
+
+                        (primitives, sub_modules)
+                    },
+                );
+
                 (*handle, primitives, sub_modules)
             })
             .collect();

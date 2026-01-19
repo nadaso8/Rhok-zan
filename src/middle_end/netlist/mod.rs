@@ -7,7 +7,7 @@ translation.
 */
 
 use crate::back_end::circuit::operation::{CircuitInput, CircuitOutput};
-use std::{collections::HashMap, fmt::Debug, usize};
+use std::{collections::HashMap, fmt::Debug, iter, usize};
 
 #[derive(Debug)]
 pub struct Netlist {
@@ -16,10 +16,41 @@ pub struct Netlist {
 }
 
 impl Netlist {
+    /// Returns a Cell if one is found at an exact match to the given path starting at the root module.
+    /// Will return none if the a primitive or input proxy is found before the end of the path, if the
+    /// path is empty, or if the linked module cannot be found at some point in the path.
+    pub fn find_cell(&self, path: CellPath) -> Option<&Cell> {
+        let mut path_iter = path.iter();
+
+        // setup initial state of fold
+        let init = self
+            .modules
+            .get(&self.root_module)
+            .expect("root module not found")
+            .cells
+            .get(match path_iter.next() {
+                Some(t) => t,
+                None => {
+                    return None;
+                }
+            });
+
+        path_iter.fold(init, |cell_description, next_handle| {
+            match cell_description {
+                Some(Cell::ModuleLink(handle)) => match self.modules.get(&handle) {
+                    Some(m) => m.cells.get(next_handle),
+                    None => None,
+                },
+                Some(Cell::Primitive(_)) | Some(Cell::InputProxy(_)) => None, // incomplete match on path.
+                None => None, // Path was empty or a complete match could not be found.
+            }
+        })
+    }
+
     /// Returns the number of primitive variant Cells that are present in the netlist.
     /// this should be equivalent to cell_layout().enumerate().last().0 + 1 but with
     /// a slightly more work efficient implementation
-    fn count_primitives(&self) -> NetlistSize {
+    pub fn count_primitives(&self) -> NetlistSize {
         let mut counts: Vec<(ModuleHandle, usize, HashMap<ModuleHandle, usize>)> = self
             .modules
             .iter()
@@ -49,7 +80,16 @@ impl Netlist {
             })
             .collect();
 
-        while (counts.len() > 1) {
+        // plumber code. innefficient inelegant but works. Collapses all the counts into root.
+        while (match counts
+            .iter()
+            .find(|(handle, ..)| *handle == self.root_module)
+        {
+            Some((.., sub_modulels)) => !sub_modulels.is_empty(),
+            None => {
+                panic!("counts missing root module")
+            }
+        }) {
             let (index, (terminal_module, terminal_primitives, _)) = match counts
                 .iter()
                 .enumerate()
@@ -59,7 +99,7 @@ impl Netlist {
                 None => return NetlistSize::Indefinite(),
             };
 
-            for (_, primitives, sub_modules) in &mut counts {
+            for (_, primitives, sub_modules) in counts.iter_mut() {
                 match sub_modules.remove(&terminal_module) {
                     Some(module_instance_count) => {
                         *primitives += terminal_primitives * module_instance_count;
@@ -71,11 +111,10 @@ impl Netlist {
             counts.remove(index);
         }
 
-        assert_eq!(counts.len(), 1);
-        let (final_module, final_count, final_sub_modules) = counts.first().unwrap();
-
-        assert_eq!(*final_module, self.root_module);
-        assert!(final_sub_modules.is_empty());
+        let (_final_module, final_count, _final_sub_modules) = counts
+            .iter()
+            .find(|(handle, ..)| *handle == self.root_module)
+            .expect("root module count not found in counts after collapsing submodules");
 
         return NetlistSize::Definite(*final_count);
     }
@@ -83,7 +122,7 @@ impl Netlist {
     /// Returns an iterator of paths to each location in a netlist which contains a primitive gate type.
     /// Note this iterator may be infinite for netlists which have cyclic instances between modules.
     /// To check if this is the case you should first use the count_primitives() method.
-    fn cell_layout(&self) -> CellLayoutIterator {
+    pub fn cell_layout(&self) -> CellLayoutIterator {
         CellLayoutIterator {
             source_netlist: &self,
             module_iterator_stack: Vec::from([self
@@ -102,15 +141,25 @@ enum NetlistSize {
     Definite(usize),
     Indefinite(),
 }
+
 /// An iterator over all locations in a netlist as a
-struct CellLayoutIterator<'a> {
+pub struct CellLayoutIterator<'a> {
     source_netlist: &'a Netlist,
     module_iterator_stack: Vec<std::collections::hash_map::Iter<'a, CellHandle, Cell>>,
     cursor: Vec<CellHandle>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CellPath(Vec<CellHandle>);
+
+impl CellPath {
+    fn iter(&self) -> std::slice::Iter<'_, CellHandle> {
+        self.0.iter()
+    }
+}
+
 impl Iterator for CellLayoutIterator<'_> {
-    type Item = Vec<CellHandle>;
+    type Item = CellPath;
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(iterator) = self.module_iterator_stack.last_mut() {
             match iterator.next() {
@@ -143,7 +192,7 @@ impl Iterator for CellLayoutIterator<'_> {
                                 self.cursor.pop();
                             }
                             self.cursor.push(*cell_handle);
-                            return Some(self.cursor.clone());
+                            return Some(CellPath(self.cursor.clone()));
                         }
                         Cell::InputProxy(_) => continue, // Proxies arent instantiable and should be skipped
                     }
@@ -233,7 +282,7 @@ mod tests {
         thread::panicking,
     };
 
-    use crate::middle_end::netlist::{Netlist, NetlistSize};
+    use crate::middle_end::netlist::{CellPath, Netlist, NetlistSize};
 
     use super::{Cell, CellHandle, Module, ModuleHandle};
     /// This just de-dublicates some of my test data
@@ -496,9 +545,9 @@ mod tests {
         for (path_no, path) in test_netlist.cell_layout().enumerate() {
             // visualization
             print!("path({path_no}) = [");
-            for (cell_handle_no, cell_handle) in path.iter().enumerate() {
+            for (cell_handle_no, cell_handle) in path.0.iter().enumerate() {
                 print!("{}", cell_handle.0);
-                if cell_handle_no < path.len() - 1 {
+                if cell_handle_no < path.0.len() - 1 {
                     print!(", ");
                 }
             }
@@ -507,7 +556,7 @@ mod tests {
             // actual testing against expected results
             let expected_index = expected_result
                 .iter()
-                .position(|x| path == *x)
+                .position(|x| path.0 == *x)
                 .expect("Last path was not in expected result");
             expected_result.remove(expected_index);
         }
@@ -527,5 +576,25 @@ mod tests {
             NetlistSize::Indefinite(),
             indefinite_netlist().count_primitives()
         )
+    }
+
+    #[test]
+    fn find_cell_test() {
+        let test_data = test_netlist();
+
+        for path in test_data.cell_layout() {
+            match test_data.find_cell(path) {
+                Some(Cell::InputProxy(_)) => {
+                    panic!("path to input proxy cell should not be produced by cell_layout")
+                }
+                Some(Cell::ModuleLink(_)) => {
+                    panic!("path to module link cell should not be produced by cell_layout")
+                }
+                None => panic!("cell_layout should always produce a valid path"),
+                Some(Cell::Primitive(_)) => {
+                    continue;
+                }
+            }
+        }
     }
 }
